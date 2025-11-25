@@ -2,7 +2,7 @@
 //  Firebase Initialization
 // -----------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyDl1rBlKbZezkdPHQovpXR_QZ_1v2w-sQg",
+  apiKey: "AIzaSyDl1rBlKbZezkdPHQovpXR_QZ_1v2w-sQg", // <-- replace with your new key if you changed it
   authDomain: "my-calling-test.firebaseapp.com",
   databaseURL: "https://my-calling-test-default-rtdb.firebaseio.com",
   projectId: "my-calling-test",
@@ -11,6 +11,7 @@ const firebaseConfig = {
   appId: "1:222289306242:web:e841cbc95876665d324a9b",
   measurementId: "G-TW6X4N95L5"
 };
+
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 console.log("[Firebase] Initialized");
@@ -65,11 +66,11 @@ let roomRef = null;
 let roomId = null;
 
 // Multi‑peer state
-let clientId = null;                   // this client's unique id inside the room
-let participantsRef = null;            // rooms/{roomId}/participants
-let myParticipantRef = null;           // rooms/{roomId}/participants/{clientId}
+let clientId = null;          // this client's unique id inside the room
+let participantsRef = null;   // rooms/{roomId}/participants
+let myParticipantRef = null;  // rooms/{roomId}/participants/{clientId}
 
-// peerId -> { pc, remoteStream, videoEl }
+// peerId -> { pc, remoteStream, videoEl, signalHandlersAttached? }
 const peers = {};
 
 // language preference for translations (default english)
@@ -116,10 +117,12 @@ function createVideoElement(id, isLocal = false) {
   video.id = id;
   video.autoplay = true;
   video.playsInline = true;
+
   if (isLocal) {
     video.muted = true;
     video.classList.add("local-video");
   }
+
   videoGrid.appendChild(video);
   return video;
 }
@@ -135,6 +138,7 @@ function addLocalVideo(stream) {
 
 function addRemoteVideo(peerId, stream) {
   if (!videoGrid) return;
+
   let peer = peers[peerId];
   if (!peer.videoEl) {
     const id = "remote-" + peerId;
@@ -145,7 +149,9 @@ function addRemoteVideo(peerId, stream) {
     }
     peer.videoEl = video;
   }
+
   peer.videoEl.srcObject = stream;
+
   const playPromise = peer.videoEl.play();
   if (playPromise !== undefined) {
     playPromise.catch((err) => {
@@ -165,6 +171,7 @@ function showRoomInfoModal() {
 // -----------------------------
 async function startLocalMedia() {
   if (localStream) return localStream;
+
   try {
     setStatus("requesting media");
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -196,9 +203,10 @@ function createPeerConnectionForPeer(peerId) {
   const remoteStream = new MediaStream();
 
   peers[peerId] = {
+    ...(peers[peerId] || {}),
     pc,
     remoteStream,
-    videoEl: null
+    videoEl: peers[peerId]?.videoEl || null
   };
 
   // Add local tracks
@@ -230,7 +238,7 @@ function createPeerConnectionForPeer(peerId) {
     addRemoteVideo(peerId, remoteStream);
   };
 
-  // ICE candidates -> Firebase signaling
+  // ICE candidates -> Firebase signaling (to peerId, from me)
   pc.onicecandidate = (event) => {
     if (!event.candidate || !roomRef || !clientId) return;
     const signalsRef = roomRef.child("signals").child(peerId).child(clientId);
@@ -245,13 +253,16 @@ async function connectToPeer(peerId) {
   try {
     console.log("[WebRTC] connectToPeer", peerId);
     const pc = createPeerConnectionForPeer(peerId);
+
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+
     const signalsRef = roomRef.child("signals").child(peerId).child(clientId);
     await signalsRef.child("offer").set({
       type: offer.type,
       sdp: offer.sdp
     });
+
     console.log("[WebRTC] Sent offer to", peerId);
   } catch (err) {
     console.error("[WebRTC] Error connecting to peer", peerId, err);
@@ -260,16 +271,24 @@ async function connectToPeer(peerId) {
 
 // Handle incoming offers/answers/ICE for a given peer
 function setupSignalHandlersForPeer(fromId, fromRef) {
+  // Prevent double attaching
+  if (peers[fromId]?.signalHandlersAttached) return;
+  peers[fromId] = peers[fromId] || {};
+  peers[fromId].signalHandlersAttached = true;
+
   // Offer (we are callee)
   fromRef.child("offer").on("value", async (snap) => {
     const offer = snap.val();
     if (!offer) return;
     console.log("[Signal] Got offer from", fromId);
+
     const pc = createPeerConnectionForPeer(fromId);
+
     if (!pc.currentRemoteDescription) {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+
       const backRef = roomRef.child("signals").child(fromId).child(clientId);
       await backRef.child("answer").set({
         type: answer.type,
@@ -284,6 +303,7 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
     const answer = snap.val();
     if (!answer) return;
     console.log("[Signal] Got answer from", fromId);
+
     const pc = createPeerConnectionForPeer(fromId);
     if (!pc.currentRemoteDescription || pc.currentRemoteDescription.type !== "answer") {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -294,8 +314,10 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
   fromRef.child("ice").on("child_added", (snap) => {
     const cand = snap.val();
     if (!cand) return;
+
     const pc = createPeerConnectionForPeer(fromId);
     const candidate = new RTCIceCandidate(cand);
+
     pc.addIceCandidate(candidate).catch((err) => {
       console.error("[Signal] Error adding ICE from", fromId, err);
     });
@@ -355,6 +377,7 @@ function addChatMessageToUI(msg) {
     console.warn("[Chat] chatMessages element missing");
     return;
   }
+
   const div = document.createElement("div");
   div.textContent = `${msg.sender}: ${msg.text}`;
   chatMessages.appendChild(div);
@@ -396,18 +419,18 @@ async function translateText(text, targetLang = "en") {
 
 function startChatListener() {
   if (!roomRef) return;
+
   roomRef.child("chat").on("child_added", async (snap) => {
     const msg = snap.val();
     if (!msg) return;
 
-    // Translate each message into user's selected language
     const translated = await translateText(msg.text, userSelectedLanguage);
+
     addChatMessageToUI({
       sender: msg.sender,
       text: translated
     });
 
-    // Optionally also show as subtitles (for simple "spoken text -> translated")
     if (subtitlesContainer) {
       subtitlesContainer.textContent = `${msg.sender}: ${translated}`;
     }
@@ -441,6 +464,7 @@ function initRoomInfra() {
   participantsRef = roomRef.child("participants");
   myParticipantRef = participantsRef.push();
   clientId = myParticipantRef.key;
+
   console.log("[Room] My clientId:", clientId);
 
   myParticipantRef.set({
@@ -449,20 +473,21 @@ function initRoomInfra() {
   });
   myParticipantRef.onDisconnect().remove();
 
-  // Listen for participants join/leave
+  // When a participant joins
   participantsRef.on("child_added", (snap) => {
     const pid = snap.key;
     if (!pid) return;
+
     addParticipantToUI(pid);
     if (pid === clientId) return;
 
-    // Only one side should initiate connection -> use simple lexicographic rule
+    // Only one side initiates connection -> lexicographic rule
     if (clientId > pid) {
-      // We are "later" -> we initiate offer
       connectToPeer(pid);
     }
   });
 
+  // When a participant leaves
   participantsRef.on("child_removed", (snap) => {
     const pid = snap.key;
     if (!pid) return;
@@ -490,6 +515,7 @@ async function createRoom() {
   try {
     roomId = generateRoomId();
     roomRef = database.ref(`rooms/${roomId}`);
+
     console.log("[Room] Creating room:", roomId);
     setStatus("creating room " + roomId);
 
@@ -500,7 +526,6 @@ async function createRoom() {
     await startLocalMedia();
     initRoomInfra();
 
-    // UI
     if (joinModal) joinModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.remove("hidden");
     showRoomInfoModal();
@@ -538,7 +563,6 @@ async function joinRoomById(id) {
     await startLocalMedia();
     initRoomInfra();
 
-    // UI
     if (joinModal) joinModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.remove("hidden");
     setStatus("joined room " + roomId);
@@ -554,11 +578,10 @@ async function joinRoomById(id) {
 async function endCall() {
   console.log("[Call] Ending call");
   setStatus("ending call");
+
   try {
-    // Close all peer connections
     Object.keys(peers).forEach((pid) => cleanupPeer(pid));
 
-    // Local stream
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
       localStream = null;
@@ -566,7 +589,6 @@ async function endCall() {
 
     clearVideos();
 
-    // Remove our participant & listeners
     if (myParticipantRef) {
       try {
         await myParticipantRef.remove();
@@ -578,9 +600,7 @@ async function endCall() {
 
     if (roomRef && roomId) {
       try {
-        roomRef.off(); // detach all listeners for this client
-        // Optional: don't delete entire room so history persists
-        // await roomRef.remove();
+        roomRef.off();
       } catch (err) {
         console.warn("[Call] Error cleaning room listeners:", err);
       }
@@ -708,4 +728,3 @@ window.addEventListener("load", () => {
     joinRoomById(urlRoomId).catch(console.error);
   }
 });
-
