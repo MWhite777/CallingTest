@@ -8,13 +8,11 @@ body, html {
     background-color: #202124;
     color: #dadce0;
 }
-
 .container {
     display: flex;
     height: 100vh;
     width: 100%;
 }
-
 .main {
     flex: 1;
     display: flex;
@@ -22,7 +20,7 @@ body, html {
     position: relative;
 }
 
-/* Video area */
+/* ===== VIDEO AREA ===== */
 .main__videos {
     flex-grow: 1;
     display: flex;
@@ -40,35 +38,29 @@ body, html {
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-wrap: wrap;
 }
 
-/* Remote video — draggable + resizable window */
-.remote-video-container {
-    position: absolute;
-    width: 320px;
-    height: 240px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 2px solid #5f6368;
+/* === Remote videos === */
+#video-grid video:not(.local-video) {
+    object-fit: contain;
     background: black;
-    resize: both;
-    cursor: move;
-    z-index: 8;
+    border-radius: 8px;
+    transition: all 0.25s ease;
+    max-width: 100%;
+    max-height: 100%;
 }
 
-/* Remote video element */
-.remote-video-container video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+/* FULLSCREEN remote video when only 1 other person */
+#video-grid.single-remote video:not(.local-video) {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
 }
 
-/* Snap highlight */
-.snap-preview {
-    border: 2px dashed #1a73e8;
-}
-
-/* Local video (small preview) */
+/* === Local video === */
 .local-video {
     position: absolute;
     width: 250px !important;
@@ -80,9 +72,10 @@ body, html {
     z-index: 10;
     background: black;
     object-fit: cover;
+    cursor: move;
 }
 
-/* Controls bar */
+/* ===== Controls bar ===== */
 .main__controls {
     display: flex;
     background-color: #202124;
@@ -94,12 +87,10 @@ body, html {
     border-top: 1px solid #3c4043;
     height: 80px;
 }
-
 .main__controls__block {
     display: flex;
     gap: 10px;
 }
-
 .main__controls__button {
     display: flex;
     flex-direction: column;
@@ -113,29 +104,24 @@ body, html {
     cursor: pointer;
     font-size: 14px;
 }
-
 .main__controls__button:hover {
     background-color: #5f6368;
 }
-
 .main__controls__button i {
     font-size: 24px;
     margin-bottom: 5px;
 }
-
-/* End Call button */
 .end-call-button {
     background-color: #ea4335;
 }
 .end-call-button:hover {
     background-color: #d33b2c;
 }
-
 .hidden {
     display: none;
 }
 
-/* Modals */
+/* ===== Modals ===== */
 .modal {
     display: flex;
     justify-content: center;
@@ -148,7 +134,6 @@ body, html {
     height: 100%;
     background-color: rgba(0,0,0,0.6);
 }
-
 .modal-content {
     background-color: #3c4043;
     color: #dadce0;
@@ -158,7 +143,6 @@ body, html {
     max-width: 400px;
     text-align: center;
 }
-
 #room-id-input {
     width: 100%;
     padding: 10px;
@@ -169,13 +153,11 @@ body, html {
     color: #dadce0;
     border-radius: 5px;
 }
-
 .modal-buttons {
     display: flex;
     gap: 10px;
     margin-top: 20px;
 }
-
 .modal-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -186,65 +168,29 @@ body, html {
     cursor: pointer;
     font-size: 16px;
 }
-
 .modal-buttons button:hover {
     background-color: #155ab6;
 }
 
-/* Room Info Modal */
-.room-info-content {
-    background-color: #3c4043;
-    color: #dadce0;
-    padding: 40px;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 500px;
-    text-align: center;
-}
+/* ===== BUBBLE JOIN CODE BADGE ===== */
+#join-code-badge {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 20;
 
-.room-id-display {
-    background-color: #202124;
-    border: 2px dashed #5f6368;
-    border-radius: 8px;
-    padding: 20px;
-    margin: 20px 0;
-    font-size: 2.2em;
-    font-weight: bold;
-    letter-spacing: 4px;
-}
+    padding: 15px 25px;
+    border-radius: 20px;
 
-.copy-buttons {
-    display: flex;
-    gap: 15px;
-    margin: 20px 0;
-}
-
-.copy-buttons button {
-    flex-grow: 1;
-    background-color: #1a73e8;
+    background: linear-gradient(135deg, #ff6ec7, #6e8bff);
     color: white;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-}
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 2px;
 
-.copy-buttons button:hover {
-    background-color: #155ab6;
-}
+    box-shadow: 0px 0px 15px rgba(255,255,255,0.3);
+    text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
 
-#close-room-info-btn {
-    background-color: #5f6368;
-    color: #dadce0;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-    margin-top: 10px;
-}
-
-#close-room-info-btn:hover {
-    background-color: #3c4043;
+    border: 3px solid rgba(255,255,255,0.3);
+    user-select: text;
 }
