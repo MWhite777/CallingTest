@@ -37,36 +37,23 @@ body, html {
     width: 100%;
     height: 100%;
     position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-/* REMOTE VIDEO — DEFAULT MULTIPEER MODE */
+/* Remote video – FULLSCREEN when only 1 remote user */
 .remote-video {
     position: absolute;
-    max-width: 350px;
-    max-height: 250px;
-    width: 350px;
-    height: 250px;
-    border-radius: 10px;
-    background: black;
-    cursor: grab;
-    object-fit: cover;
-    border: 2px solid #444;
-}
-
-/* FULLSCREEN REMOTE VIDEO — ONLY WHEN 1-ON-1 */
-.remote-fullscreen {
-    position: absolute !important;
-    top: 0;
-    left: 0;
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover !important;
-    border-radius: 0 !important;
-    border: none !important;
-    cursor: default;
+    object-fit: cover;
+    top: 0;
+    left: 0;
+    background: black;
 }
 
-/* Local preview */
+/* Local video (small preview) */
 .local-video {
     position: absolute;
     width: 250px !important;
@@ -75,18 +62,29 @@ body, html {
     right: 20px;
     border: 2px solid #1a73e8;
     border-radius: 8px;
-    z-index: 10;
+    z-index: 20;
     background: black;
     object-fit: cover;
+    cursor: grab;
 }
 
-/* Snap zones */
+/* When dragging */
+.local-video:active {
+    cursor: grabbing;
+}
+
+/* SNAP TO CORNERS HITBOX AREAS */
 .snap-corner {
     position: absolute;
-    width: 30px;
-    height: 30px;
+    width: 120px;
+    height: 120px;
     z-index: 1;
 }
+
+.snap-top-left { top: 0; left: 0; }
+.snap-top-right { top: 0; right: 0; }
+.snap-bottom-left { bottom: 0; left: 0; }
+.snap-bottom-right { bottom: 0; right: 0; }
 
 /* Controls bar */
 .main__controls {
@@ -101,6 +99,11 @@ body, html {
     height: 80px;
 }
 
+.main__controls__block {
+    display: flex;
+    gap: 10px;
+}
+
 .main__controls__button {
     display: flex;
     flex-direction: column;
@@ -112,12 +115,19 @@ body, html {
     padding: 10px 20px;
     border-radius: 5px;
     cursor: pointer;
+    font-size: 14px;
 }
 
 .main__controls__button:hover {
     background-color: #5f6368;
 }
 
+.main__controls__button i {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+/* End Call button */
 .end-call-button {
     background-color: #ea4335;
 }
@@ -125,23 +135,141 @@ body, html {
     background-color: #d33b2c;
 }
 
-.hidden { display: none; }
+.hidden {
+    display: none;
+}
 
-/* ROOM JOIN CODE BUBBLE */
+/* Join Code Bubble (ALWAYS visible) */
 #join-code-bubble {
     position: fixed;
-    bottom: 15px;
-    left: 15px;
-    background: linear-gradient(135deg, #7b5cff, #ff6ec7);
+    bottom: 20px;
+    left: 20px;
+    background: #82caff;          /* solid light blue */
     padding: 15px 25px;
-    color: white;
+    border-radius: 15px;
     font-size: 26px;
-    font-weight: 900;
-    font-family: 'Comic Sans MS', cursive, sans-serif;
-    border-radius: 12px;
+    font-weight: bold;
     letter-spacing: 3px;
-    z-index: 5000;
-    box-shadow: 0 0 12px rgba(0,0,0,0.5);
-    border: 3px solid white;
-    text-shadow: 2px 2px 0 black;
+    color: black;
+    z-index: 50;
+    font-family: "Comic Sans MS", "Fredoka", "Baloo 2", cursive; /* bubble letters vibe */
+    box-shadow: 0 0 10px #5ab2ff;
+    border: 3px solid #4aa3ff;
+    user-select: none;
+}
+
+/* Modals */
+.modal {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+    background-color: #3c4043;
+    color: #dadce0;
+    padding: 30px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 400px;
+    text-align: center;
+}
+
+#room-id-input {
+    width: 100%;
+    padding: 10px;
+    margin: 20px 0;
+    box-sizing: border-box;
+    border: 1px solid #5f6368;
+    background-color: #202124;
+    color: #dadce0;
+    border-radius: 5px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-buttons button {
+    flex-grow: 1;
+    background-color: #1a73e8;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.modal-buttons button:hover {
+    background-color: #155ab6;
+}
+
+/* Room info modal */
+.room-info-content {
+    background-color: #3c4043;
+    color: #dadce0;
+    padding: 40px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 500px;
+    text-align: center;
+}
+
+.room-id-display {
+    background-color: #202124;
+    border: 2px dashed #5f6368;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    font-size: 2.2em;
+    font-weight: bold;
+    letter-spacing: 4px;
+    word-wrap: break-word;
+}
+
+.copy-buttons {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.copy-buttons button {
+    flex-grow: 1;
+    background-color: #1a73e8;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+}
+.copy-buttons button:hover {
+    background-color: #155ab6;
+}
+.copy-buttons button:active {
+    background-color: #0d47a1;
+}
+
+#close-room-info-btn {
+    background-color: #5f6368;
+    color: #dadce0;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
+}
+#close-room-info-btn:hover {
+    background-color: #3c4043;
 }
