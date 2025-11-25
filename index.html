@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Video Call</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main">
+            <div class="main__videos">
+                <div id="video-grid">
+                    <!-- Local + remote videos get added here -->
+                </div>
+            </div>
+            <div class="main__controls">
+                <div class="main__controls__block">
+                    <button id="mute-btn" class="main__controls__button main__mute_button">
+                        <i class="fas fa-microphone"></i>
+                        <span>Mute</span>
+                    </button>
+                    <button id="video-btn" class="main__controls__button main__video_button">
+                        <i class="fas fa-video"></i>
+                        <span>Stop Video</span>
+                    </button>
+                    <button id="end-call-btn" class="main__controls__button end-call-button hidden">
+                        <i class="fas fa-phone-slash"></i>
+                        <span>End Call</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join / Start Call Modal -->
+    <div id="join-modal" class="modal">
+        <div class="modal-content">
+            <h2>Join or Start a Call</h2>
+            <input type="text" id="room-id-input" placeholder="Enter Room ID to join">
+            <div class="modal-buttons">
+                <button id="join-call-btn">Join Call</button>
+                <button id="start-call-btn">Start New Call</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Info Modal (shows after starting a call) -->
+    <div id="room-info-modal" class="modal" style="display: none;">
+        <div class="room-info-content">
+            <h2>Your Call is Ready!</h2>
+            <p>Share this ID or link with others to join your call.</p>
+            <div class="room-id-display" id="room-id-display"></div>
+            <div class="copy-buttons">
+                <button id="copy-id-btn">Copy ID</button>
+                <button id="copy-link-btn">Copy Link</button>
+            </div>
+            <button id="close-room-info-btn">Close</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (compat version, works with firebase.initializeApp) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <!-- Your app logic -->
+    <script src="script.js"></script>
+</body>
+</html>
