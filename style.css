@@ -1,194 +1,240 @@
-/* ----------------------------------------------------
-   GENERAL
----------------------------------------------------- */
-body {
-  margin: 0;
-  padding: 0;
-  background: #1f1f1f;
-  color: white;
-  font-family: Arial, sans-serif;
-  overflow: hidden;
+/* Global */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: #202124;
+    color: #dadce0;
 }
 
-/* ----------------------------------------------------
-   JOIN CODE BUBBLE
----------------------------------------------------- */
-#join-code-badge {
-  position: fixed;
-  bottom: 10px;
-  left: 10px;
-  background: #73c7ff;
-  color: #000;
-  padding: 10px 16px;
-  border-radius: 12px;
-  font-size: 20px;
-  font-weight: 900;
-  font-family: "Comic Sans MS", sans-serif;
-  z-index: 99999;
-  box-shadow: 0 0 8px rgba(0,0,0,0.4);
+.container {
+    display: flex;
+    height: 100vh;
+    width: 100%;
 }
 
-/* ----------------------------------------------------
-   VIDEO GRID
----------------------------------------------------- */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Video area */
+.main__videos {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background-color: #202124;
+    overflow: hidden; /* Prevent scroll */
+}
+
 #video-grid {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px;
-  justify-content: center;
-  align-items: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-/* Generic video look */
-#video-grid video {
-  background: black;
-  border-radius: 10px;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: cover;
+/* Remote video — stays inside screen without scrolling */
+#video-grid video:not(.local-video) {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    background: black;
 }
 
-/* 1v1 fullscreen remote */
-.remote-fullscreen {
-  position: fixed !important;
-  top: 0;
-  left: 0;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 1;
+/* Local video (small preview) */
+.local-video {
+    position: absolute;
+    width: 250px !important;
+    height: 187.5px !important;
+    bottom: 20px;
+    right: 20px;
+    border: 2px solid #1a73e8;
+    border-radius: 8px;
+    z-index: 10;
+    background: black;
+    object-fit: cover;
 }
 
-/* ----------------------------------------------------
-   DRAGGABLE / RESIZABLE VIDEOS
----------------------------------------------------- */
-.remote-video, .local-video {
-  resize: both;
-  overflow: hidden;
-  position: relative;
-  cursor: grab;
+/* Controls bar */
+.main__controls {
+    display: flex;
+    background-color: #202124;
+    color: #dadce0;
+    padding: 10px;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    border-top: 1px solid #3c4043;
+    height: 80px; /* Fixed height */
 }
 
-.remote-video:active, .local-video:active {
-  cursor: grabbing;
+.main__controls__block {
+    display: flex;
+    gap: 10px;
 }
 
-/* ----------------------------------------------------
-   MODAL WINDOWS
----------------------------------------------------- */
+.main__controls__button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #3c4043;
+    border: none;
+    color: #dadce0;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+}
 
+.main__controls__button:hover {
+    background-color: #5f6368;
+}
+
+.main__controls__button i {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+/* End Call button */
+.end-call-button {
+    background-color: #ea4335;
+}
+.end-call-button:hover {
+    background-color: #d33b2c;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Modals */
 .modal {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.55);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
 }
 
 .modal-content {
-  background: #3b3b3b;
-  padding: 30px;
-  width: 500px;
-  border-radius: 15px;
-  text-align: center;
-  box-shadow: 0 0 12px rgba(0,0,0,0.7);
+    background-color: #3c4043;
+    color: #dadce0;
+    padding: 30px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 400px;
+    text-align: center;
 }
 
-/* Big code display box */
-#room-id-display {
-  font-size: 42px;
-  font-weight: bold;
-  letter-spacing: 6px;
-  padding: 20px 0;
-  margin: 20px auto;
-  background: #111;
-  border: 2px dashed #777;
-  border-radius: 12px;
-  color: #fff;
-  width: 90%;
+#room-id-input {
+    width: 100%;
+    padding: 10px;
+    margin: 20px 0;
+    box-sizing: border-box;
+    border: 1px solid #5f6368;
+    background-color: #202124;
+    color: #dadce0;
+    border-radius: 5px;
 }
 
-/* ----------------------------------------------------
-   BUTTONS (the fixed version you wanted!)
----------------------------------------------------- */
-button {
-  padding: 12px 20px;
-  border-radius: 8px;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  margin: 5px;
-  transition: 0.2s;
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
 }
 
-/* Blue highlight buttons */
-#copy-id-btn,
-#copy-link-btn,
-#start-call-btn,
-#join-call-btn {
-  background: #0d6efd;
-  color: white;
-  width: 48%;
-  font-weight: bold;
-  border: 2px solid rgba(255,255,255,0.2);
+.modal-buttons button {
+    flex-grow: 1;
+    background-color: #1a73e8;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
 }
 
-#copy-id-btn:hover,
-#copy-link-btn:hover,
-#start-call-btn:hover,
-#join-call-btn:hover {
-  background: #3d8bfd;
+.modal-buttons button:hover {
+    background-color: #155ab6;
 }
 
-/* Close button */
+/* Room Info Modal */
+.room-info-content {
+    background-color: #3c4043;
+    color: #dadce0;
+    padding: 40px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 500px;
+    text-align: center;
+}
+
+.room-id-display {
+    background-color: #202124;
+    border: 2px dashed #5f6368;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    font-size: 2.2em;
+    font-weight: bold;
+    letter-spacing: 4px;
+    word-wrap: break-word;
+}
+
+.copy-buttons {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.copy-buttons button {
+    flex-grow: 1;
+    background-color: #1a73e8;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+}
+
+.copy-buttons button:hover {
+    background-color: #155ab6;
+}
+
+.copy-buttons button:active {
+    background-color: #0d47a1;
+}
+
 #close-room-info-btn {
-  background: #6c757d;
-  color: white;
-  width: 40%;
+    background-color: #5f6368;
+    color: #dadce0;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
 }
 
 #close-room-info-btn:hover {
-  background: #8b949c;
-}
-
-/* Bottom control bar buttons */
-#mute-btn,
-#video-btn,
-#end-call-btn {
-  background: #2d2d2d;
-  color: #ccc;
-  border-radius: 6px;
-  padding: 10px 16px;
-  font-size: 14px;
-  border: 1px solid #555;
-}
-
-#end-call-btn {
-  background: #b00020;
-  color: white;
-  border-color: #d00025;
-}
-
-#end-call-btn:hover {
-  background: #c5142a;
-}
-
-/* ----------------------------------------------------
-   STATUS LABEL
----------------------------------------------------- */
-#status-label {
-  position: fixed;
-  left: 10px;
-  bottom: 90px;
-  color: #ccc;
-  font-size: 14px;
-  font-family: monospace;
+    background-color: #3c4043;
 }
