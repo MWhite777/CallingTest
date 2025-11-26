@@ -57,6 +57,15 @@ if (!statusLabel) {
   document.body.appendChild(statusLabel);
 }
 
+// Join code bubble (always shows latest room ID)
+let joinCodeBadge = document.getElementById("join-code-badge");
+if (!joinCodeBadge) {
+  joinCodeBadge = document.createElement("div");
+  joinCodeBadge.id = "join-code-badge";
+  joinCodeBadge.textContent = "CODE: ----";
+  document.body.appendChild(joinCodeBadge);
+}
+
 // -----------------------------
 //  STATE
 // -----------------------------
@@ -65,9 +74,9 @@ let roomRef = null;
 let roomId = null;
 
 // Multi‑peer state
-let clientId = null;                   // this client's unique id inside the room
-let participantsRef = null;            // rooms/{roomId}/participants
-let myParticipantRef = null;           // rooms/{roomId}/participants/{clientId}
+let clientId = null;            // this client's unique id inside the room
+let participantsRef = null;     // rooms/{roomId}/participants
+let myParticipantRef = null;    // rooms/{roomId}/participants/{clientId}
 
 // peerId -> { pc, remoteStream, videoEl }
 const peers = {};
@@ -111,6 +120,26 @@ function clearVideos() {
   if (videoGrid) videoGrid.innerHTML = "";
 }
 
+// Update join-code bubble text
+function updateJoinCodeBadge() {
+  if (!joinCodeBadge) return;
+  if (roomId) {
+    joinCodeBadge.textContent = `CODE: ${roomId}`;
+  } else {
+    joinCodeBadge.textContent = "CODE: ----";
+  }
+}
+
+// 1‑on‑1 fullscreen vs multi‑grid layout
+function updateVideoLayout() {
+  if (!videoGrid) return;
+  const remoteVideos = videoGrid.querySelectorAll("video.remote-video");
+  remoteVideos.forEach(v => v.classList.remove("fullscreen-remote"));
+  if (remoteVideos.length === 1) {
+    remoteVideos[0].classList.add("fullscreen-remote");
+  }
+}
+
 function createVideoElement(id, isLocal = false) {
   const video = document.createElement("video");
   video.id = id;
@@ -152,6 +181,8 @@ function addRemoteVideo(peerId, stream) {
       console.warn("[RemoteVideo] play() blocked:", err);
     });
   }
+  // adjust fullscreen vs multi layout
+  updateVideoLayout();
 }
 
 function showRoomInfoModal() {
@@ -335,16 +366,16 @@ function cleanupPeer(peerId) {
       console.warn(e);
     }
   }
-
   if (peer.remoteStream) {
     peer.remoteStream.getTracks().forEach((t) => t.stop());
   }
-
   if (peer.videoEl) {
     peer.videoEl.remove();
   }
-
   delete peers[peerId];
+
+  // recalc layout after someone leaves
+  updateVideoLayout();
 }
 
 // -----------------------------
@@ -384,7 +415,6 @@ async function translateText(text, targetLang = "en") {
         format: "text"
       })
     });
-
     const data = await res.json();
     if (data && data.translatedText) return data.translatedText;
     return text;
@@ -399,14 +429,12 @@ function startChatListener() {
   roomRef.child("chat").on("child_added", async (snap) => {
     const msg = snap.val();
     if (!msg) return;
-
     // Translate each message into user's selected language
     const translated = await translateText(msg.text, userSelectedLanguage);
     addChatMessageToUI({
       sender: msg.sender,
       text: translated
     });
-
     // Optionally also show as subtitles (for simple "spoken text -> translated")
     if (subtitlesContainer) {
       subtitlesContainer.textContent = `${msg.sender}: ${translated}`;
@@ -422,7 +450,6 @@ if (chatSendBtn && chatInput) {
       chatInput.value = "";
     }
   });
-
   chatInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -441,6 +468,7 @@ function initRoomInfra() {
   participantsRef = roomRef.child("participants");
   myParticipantRef = participantsRef.push();
   clientId = myParticipantRef.key;
+
   console.log("[Room] My clientId:", clientId);
 
   myParticipantRef.set({
@@ -455,7 +483,6 @@ function initRoomInfra() {
     if (!pid) return;
     addParticipantToUI(pid);
     if (pid === clientId) return;
-
     // Only one side should initiate connection -> use simple lexicographic rule
     if (clientId > pid) {
       // We are "later" -> we initiate offer
@@ -490,6 +517,7 @@ async function createRoom() {
   try {
     roomId = generateRoomId();
     roomRef = database.ref(`rooms/${roomId}`);
+
     console.log("[Room] Creating room:", roomId);
     setStatus("creating room " + roomId);
 
@@ -504,6 +532,7 @@ async function createRoom() {
     if (joinModal) joinModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.remove("hidden");
     showRoomInfoModal();
+    updateJoinCodeBadge();
     setStatus("room created: " + roomId);
   } catch (err) {
     console.error("[Room] Error creating room:", err);
@@ -519,7 +548,6 @@ async function joinRoomById(id) {
     alert("Please enter a Room ID.");
     return;
   }
-
   try {
     console.log("[Room] Trying to join room:", id);
     setStatus("joining room " + id);
@@ -541,6 +569,7 @@ async function joinRoomById(id) {
     // UI
     if (joinModal) joinModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.remove("hidden");
+    updateJoinCodeBadge();
     setStatus("joined room " + roomId);
   } catch (err) {
     console.error("[Room] Error joining room:", err);
@@ -589,6 +618,7 @@ async function endCall() {
     roomRef = null;
     roomId = null;
     clientId = null;
+    updateJoinCodeBadge();
 
     if (joinModal) joinModal.style.display = "flex";
     if (roomInfoModal) roomInfoModal.style.display = "none";
