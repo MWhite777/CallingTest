@@ -7,22 +7,18 @@ body, html {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: #202124;
     color: #dadce0;
-    overflow: hidden; /* disable page scroll */
 }
-
 .container {
     display: flex;
     height: 100vh;
     width: 100%;
 }
-
 .main {
     flex: 1;
     display: flex;
     flex-direction: column;
     position: relative;
 }
-
 /* Video area */
 .main__videos {
     flex-grow: 1;
@@ -33,7 +29,6 @@ body, html {
     background-color: #202124;
     overflow: hidden; /* Prevent scroll */
 }
-
 #video-grid {
     width: 100%;
     height: 100%;
@@ -45,8 +40,7 @@ body, html {
     align-content: center;
     gap: 10px;
 }
-
-/* Generic remote video style (multi‑person layout) */
+/* Generic remote video style (multi‑person layout by default) */
 .remote-video {
     flex: 1 1 calc(50% - 20px);
     max-width: calc(50% - 20px);
@@ -56,10 +50,9 @@ body, html {
     object-fit: cover;
     background: black;
     border-radius: 6px;
-    transition: box-shadow 0.15s ease;
 }
 
-/* When exactly ONE remote is in the call -> fullscreen */
+/* When exactly ONE remote is in the call -> fullscreen (used by auto layout) */
 .remote-video.fullscreen-remote {
     position: absolute;
     inset: 0;
@@ -85,13 +78,6 @@ body, html {
     z-index: 10;
     background: black;
     object-fit: cover;
-    transition: box-shadow 0.15s ease;
-}
-
-/* Voice activity glow (speaking) */
-.remote-video.speaking,
-.local-video.speaking {
-    box-shadow: 0 0 0 3px #1a73e8, 0 0 15px rgba(26, 115, 232, 0.8);
 }
 
 /* Controls bar */
@@ -106,12 +92,10 @@ body, html {
     border-top: 1px solid #3c4043;
     height: 80px; /* Fixed height */
 }
-
 .main__controls__block {
     display: flex;
     gap: 10px;
 }
-
 .main__controls__button {
     display: flex;
     flex-direction: column;
@@ -125,25 +109,20 @@ body, html {
     cursor: pointer;
     font-size: 14px;
 }
-
 .main__controls__button:hover {
     background-color: #5f6368;
 }
-
 .main__controls__button i {
     font-size: 24px;
     margin-bottom: 5px;
 }
-
 /* End Call button */
 .end-call-button {
     background-color: #ea4335;
 }
-
 .end-call-button:hover {
     background-color: #d33b2c;
 }
-
 .hidden {
     display: none;
 }
@@ -161,7 +140,6 @@ body, html {
     height: 100%;
     background-color: rgba(0,0,0,0.6);
 }
-
 .modal-content {
     background-color: #3c4043;
     color: #dadce0;
@@ -171,30 +149,6 @@ body, html {
     max-width: 400px;
     text-align: center;
 }
-
-/* Language row in join modal */
-.modal-language-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 14px;
-}
-
-.modal-language-row label {
-    color: #dadce0;
-}
-
-.modal-language-row select {
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid #5f6368;
-    background-color: #202124;
-    color: #dadce0;
-    font-size: 14px;
-}
-
 #room-id-input,
 #display-name-input {
     width: 100%;
@@ -207,12 +161,31 @@ body, html {
     border-radius: 5px;
 }
 
+/* Language selector row in modal */
+.language-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+}
+.language-row label {
+    font-size: 14px;
+}
+#language-select {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #5f6368;
+    background-color: #202124;
+    color: #dadce0;
+}
+
 .modal-buttons {
     display: flex;
     gap: 10px;
     margin-top: 20px;
 }
-
 .modal-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -223,7 +196,6 @@ body, html {
     cursor: pointer;
     font-size: 16px;
 }
-
 .modal-buttons button:hover {
     background-color: #155ab6;
 }
@@ -238,7 +210,6 @@ body, html {
     max-width: 500px;
     text-align: center;
 }
-
 .room-id-display {
     background-color: #202124;
     border: 2px dashed #5f6368;
@@ -250,13 +221,11 @@ body, html {
     letter-spacing: 4px;
     word-wrap: break-word;
 }
-
 .copy-buttons {
     display: flex;
     gap: 15px;
     margin: 20px 0;
 }
-
 .copy-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -268,15 +237,12 @@ body, html {
     font-size: 16px;
     transition: background-color 0.2s;
 }
-
 .copy-buttons button:hover {
     background-color: #155ab6;
 }
-
 .copy-buttons button:active {
     background-color: #0d47a1;
 }
-
 #close-room-info-btn {
     background-color: #5f6368;
     color: #dadce0;
@@ -287,7 +253,6 @@ body, html {
     font-size: 14px;
     margin-top: 10px;
 }
-
 #close-room-info-btn:hover {
     background-color: #3c4043;
 }
@@ -328,31 +293,10 @@ body, html {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s ease;
 }
-
 .chat-toggle-btn i {
     font-size: 20px;
-    transition: transform 0.25s ease;
 }
-
-/* unread indicator on chat toggle */
-.chat-toggle-btn.has-unread::after {
-    content: "";
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #ea4335;
-}
-
-/* rotate icon when open */
-.chat-toggle-btn.open i {
-    transform: rotate(180deg);
-}
-
 .chat-panel {
     position: fixed;
     top: 0;
@@ -364,18 +308,15 @@ body, html {
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
-    transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: transform 0.25s ease-out;
     z-index: 130;
 }
-
 .chat-panel--hidden {
     transform: translateX(100%);
 }
-
 .chat-panel--open {
     transform: translateX(0);
 }
-
 .chat-panel__header {
     display: flex;
     justify-content: space-between;
@@ -384,18 +325,15 @@ body, html {
     border-bottom: 1px solid #3c4043;
     background-color: #202124;
 }
-
 .chat-panel__header span {
     font-weight: 600;
 }
-
 .chat-header-button {
     background: none;
     border: none;
     color: #dadce0;
     cursor: pointer;
 }
-
 .chat-panel__target {
     display: flex;
     align-items: center;
@@ -403,12 +341,10 @@ body, html {
     padding: 8px 12px;
     border-bottom: 1px solid #3c4043;
 }
-
 .chat-panel__target label {
     font-size: 12px;
     color: #9aa0a6;
 }
-
 #chat-target-select {
     flex: 1;
     padding: 6px 8px;
@@ -418,23 +354,19 @@ body, html {
     color: #dadce0;
     font-size: 13px;
 }
-
 .chat-panel__messages {
     flex: 1;
     overflow-y: auto;
     padding: 8px 12px;
     font-size: 13px;
 }
-
 .chat-message {
     margin-bottom: 8px;
 }
-
 .chat-message-meta {
     font-size: 11px;
     color: #9aa0a6;
 }
-
 .chat-message-text {
     background-color: #3c4043;
     border-radius: 6px;
@@ -442,22 +374,12 @@ body, html {
     margin-top: 2px;
     word-wrap: break-word;
 }
-
-/* images (including GIFs) inside chat */
-.chat-message-text img {
-    max-width: 100%;
-    border-radius: 4px;
-    margin-top: 4px;
-}
-
-/* Chat input */
 .chat-panel__input {
     display: flex;
     padding: 8px 10px;
     border-top: 1px solid #3c4043;
     background-color: #202124;
 }
-
 #chat-input {
     flex: 1;
     padding: 8px;
@@ -467,7 +389,6 @@ body, html {
     color: #dadce0;
     font-size: 13px;
 }
-
 #chat-send-btn {
     margin-left: 8px;
     background-color: #1a73e8;
@@ -479,60 +400,9 @@ body, html {
     justify-content: center;
     cursor: pointer;
 }
-
 #chat-send-btn i {
     color: #fff;
 }
-
 #chat-send-btn:hover {
     background-color: #155ab6;
-}
-
-/* Chat notification toast */
-.chat-notification {
-    position: fixed;
-    right: 16px;
-    bottom: 100px;
-    background-color: #3c4043;
-    color: #dadce0;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    z-index: 160;
-}
-
-.chat-notification.hidden {
-    display: none;
-}
-
-/* Simple mobile tweaks */
-@media (max-width: 900px) {
-    #video-grid {
-        flex-direction: column;
-    }
-
-    .remote-video {
-        flex: 1 1 100%;
-        max-width: 100%;
-        max-height: none;
-    }
-
-    .local-video {
-        width: 160px !important;
-        height: 120px !important;
-    }
-
-    .chat-panel {
-        width: 80%;
-    }
-
-    .main__controls__button {
-        padding: 4px 8px;
-        font-size: 11px;
-    }
-
-    .main__controls__button i {
-        font-size: 16px;
-    }
 }
