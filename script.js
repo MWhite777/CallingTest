@@ -10,215 +10,189 @@ const firebaseConfig = {
   measurementId: "G-BC52VQ658F"
 };
 
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// --- UI Elements ---
-const joinModal = document.getElementById("join-modal");
-const roomInfoModal = document.getElementById("room-info-modal");
-const roomIdInput = document.getElementById("room-id-input");
-const roomIdDisplay = document.getElementById("room-id-display");
-
-const joinCallBtn = document.getElementById("join-call-btn");
-const startCallBtn = document.getElementById("start-call-btn");
-const copyIdBtn = document.getElementById("copy-id-btn");
-const copyLinkBtn = document.getElementById("copy-link-btn");
-const closeRoomInfoBtn = document.getElementById("close-room-info-btn");
-
-const muteBtn = document.getElementById("mute-btn");
-const videoBtn = document.getElementById("video-btn");
-const endCallBtn = document.getElementById("end-call-btn");
-
-const videoGrid = document.getElementById("video-grid");
+// TURN + STUN servers
+const rtcConfig = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+            urls: "turn:relay1.expressturn.com:3480",
+            username: "000000002079386592",
+            credential: "u1xEd/GlKAOmVY4fK+azNX8vbIY="
+        }
+    ]
+};
 
 let localStream;
-let peers = {};
+let peerConnections = {};
 let roomId = null;
 
-// --- Get Local Media ---
-async function initLocalStream() {
-    localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-    });
+// Elements
+const videoGrid = document.getElementById("video-grid");
+const muteBtn = document.getElementById("mute-btn");
+const videoBtn = document.getElementById("video-btn");
+const joinModal = document.getElementById("join-modal");
+const startCallBtn = document.getElementById("start-call-btn");
+const joinCallBtn = document.getElementById("join-call-btn");
+const roomIdInput = document.getElementById("room-id-input");
+const endCallBtn = document.getElementById("end-call-btn");
+
+const roomInfoModal = document.getElementById("room-info-modal");
+const roomIdDisplay = document.getElementById("room-id-display");
+const closeRoomInfoBtn = document.getElementById("close-room-info-btn");
+const copyIdBtn = document.getElementById("copy-id-btn");
+const copyLinkBtn = document.getElementById("copy-link-btn");
+
+// Ask for permissions immediately
+async function initLocalVideo() {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
     const localVideo = document.createElement("video");
     localVideo.srcObject = localStream;
-    localVideo.muted = true;
     localVideo.autoplay = true;
+    localVideo.muted = true;
     localVideo.classList.add("local-video");
 
     videoGrid.appendChild(localVideo);
 }
 
-startCallBtn.onclick = async () => {
-    roomId = Math.random().toString(36).substring(2, 8);
-    roomIdDisplay.textContent = roomId;
+initLocalVideo();
 
-    joinModal.style.display = "none";
-    roomInfoModal.style.display = "flex";
+// Create PeerConnection for user
+function createPeerConnection(remoteUserId) {
+    const pc = new RTCPeerConnection(rtcConfig);
 
-    await initCall(roomId);
-};
-
-joinCallBtn.onclick = async () => {
-    roomId = roomIdInput.value.trim();
-    if (!roomId) return alert("Enter a valid Room ID");
-
-    joinModal.style.display = "none";
-    await initCall(roomId);
-};
-
-closeRoomInfoBtn.onclick = () => {
-    roomInfoModal.style.display = "none";
-};
-
-copyIdBtn.onclick = () => {
-    navigator.clipboard.writeText(roomId);
-};
-
-copyLinkBtn.onclick = () => {
-    navigator.clipboard.writeText(window.location.href + "?room=" + roomId);
-};
-
-// --- Init Call ---
-async function initCall(roomId) {
-    await initLocalStream();
-
-    const roomRef = db.ref("calls/" + roomId);
-
-    roomRef.on("child_added", snapshot => {
-        const data = snapshot.val();
-        if (!data) return;
-
-        if (data.type === "offer" && data.sender !== firebaseConfig.messagingSenderId) {
-            handleOffer(data);
-        } else if (data.type === "answer" && data.sender !== firebaseConfig.messagingSenderId) {
-            handleAnswer(data);
-        } else if (data.type === "ice" && data.sender !== firebaseConfig.messagingSenderId) {
-            handleIce(data);
-        }
+    localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
     });
 
-    createPeer(roomId);
-}
-
-// --- Peer Creation ---
-async function createPeer(roomId) {
-    const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
-
-    peers[roomId] = pc;
-
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    const remoteVideo = document.createElement("video");
+    remoteVideo.autoplay = true;
+    remoteVideo.playsinline = true;
+    remoteVideo.dataset.userid = remoteUserId;
+    videoGrid.appendChild(remoteVideo);
 
     pc.ontrack = event => {
-        const remoteVideo = document.createElement("video");
         remoteVideo.srcObject = event.streams[0];
-        remoteVideo.autoplay = true;
-        videoGrid.appendChild(remoteVideo);
     };
 
     pc.onicecandidate = event => {
         if (event.candidate) {
-            db.ref("calls/" + roomId).push({
-                sender: firebaseConfig.messagingSenderId,
-                type: "ice",
-                candidate: event.candidate
-            });
+            db.ref(`rooms/${roomId}/candidates/${remoteUserId}/${myId}`).push(event.candidate.toJSON());
         }
     };
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    db.ref("calls/" + roomId).push({
-        sender: firebaseConfig.messagingSenderId,
-        type: "offer",
-        offer: offer
-    });
-
-    endCallBtn.classList.remove("hidden");
+    return pc;
 }
 
-// --- Handle Offer ---
-async function handleOffer(data) {
-    const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+let myId = Math.random().toString(36).substring(2, 10);
+
+// Start a new call
+startCallBtn.onclick = async () => {
+    roomId = Math.random().toString(36).substring(2, 8);
+    roomIdDisplay.textContent = roomId;
+    roomInfoModal.style.display = "flex";
+
+    await db.ref(`rooms/${roomId}`).set({
+        host: myId
     });
 
-    peers[data.sender] = pc;
+    joinModal.style.display = "none";
+};
 
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+// Join an existing call
+joinCallBtn.onclick = async () => {
+    const id = roomIdInput.value.trim();
+    if (!id) return;
 
-    pc.ontrack = event => {
-        const remoteVideo = document.createElement("video");
-        remoteVideo.srcObject = event.streams[0];
-        remoteVideo.autoplay = true;
-        videoGrid.appendChild(remoteVideo);
-    };
+    roomId = id;
+    joinModal.style.display = "none";
 
-    pc.onicecandidate = e => {
-        if (e.candidate) {
-            db.ref("calls/" + roomId).push({
-                sender: firebaseConfig.messagingSenderId,
-                type: "ice",
-                candidate: e.candidate
-            });
+    setupRoomListeners();
+};
+
+// Close "room ready" modal
+closeRoomInfoBtn.onclick = () => {
+    roomInfoModal.style.display = "none";
+    setupRoomListeners();
+};
+
+// Copy room ID
+copyIdBtn.onclick = () => {
+    navigator.clipboard.writeText(roomId);
+};
+
+// Copy join link
+copyLinkBtn.onclick = () => {
+    navigator.clipboard.writeText(window.location.href + "?room=" + roomId);
+};
+
+// Room listeners
+function setupRoomListeners() {
+    db.ref(`rooms/${roomId}/offers`).on("child_added", async snapshot => {
+        const remoteUserId = snapshot.key;
+        const offer = snapshot.val();
+
+        if (!peerConnections[remoteUserId]) {
+            peerConnections[remoteUserId] = createPeerConnection(remoteUserId);
         }
-    };
 
-    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+        await peerConnections[remoteUserId].setRemoteDescription(new RTCSessionDescription(offer));
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+        const answer = await peerConnections[remoteUserId].createAnswer();
+        await peerConnections[remoteUserId].setLocalDescription(answer);
 
-    db.ref("calls/" + roomId).push({
-        sender: firebaseConfig.messagingSenderId,
-        type: "answer",
-        answer: answer
+        await db.ref(`rooms/${roomId}/answers/${remoteUserId}/${myId}`).set(answer);
     });
 
-    endCallBtn.classList.remove("hidden");
+    db.ref(`rooms/${roomId}/answers/${myId}`).on("child_added", async snapshot => {
+        const remoteUserId = snapshot.key;
+        const answer = snapshot.val();
+
+        await peerConnections[remoteUserId].setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    db.ref(`rooms/${roomId}/candidates/${myId}`).on("child_added", snapshot => {
+        const candidate = snapshot.val();
+        const remoteUserId = snapshot.ref.parent.key;
+
+        if (peerConnections[remoteUserId]) {
+            peerConnections[remoteUserId].addIceCandidate(new RTCIceCandidate(candidate));
+        }
+    });
+
+    createOfferForExistingUsers();
 }
 
-// --- Handle Answer ---
-async function handleAnswer(data) {
-    const pc = peers[roomId];
-    if (!pc) return;
-    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+async function createOfferForExistingUsers() {
+    const roomRef = await db.ref(`rooms/${roomId}/offers`).get();
+    const existingUsers = roomRef.exists() ? Object.keys(roomRef.val()) : [];
+
+    existingUsers.forEach(async userId => {
+        peerConnections[userId] = createPeerConnection(userId);
+
+        const offer = await peerConnections[userId].createOffer();
+        await peerConnections[userId].setLocalDescription(offer);
+
+        await db.ref(`rooms/${roomId}/offers/${myId}`).set(offer);
+    });
 }
 
-// --- Handle ICE ---
-function handleIce(data) {
-    const pc = peers[roomId];
-    if (!pc) return;
-    pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-}
-
-// --- Controls ---
+// Mute button
 muteBtn.onclick = () => {
     const audioTrack = localStream.getAudioTracks()[0];
     audioTrack.enabled = !audioTrack.enabled;
+
     muteBtn.querySelector("span").textContent = audioTrack.enabled ? "Mute" : "Unmute";
 };
 
+// Video button
 videoBtn.onclick = () => {
     const videoTrack = localStream.getVideoTracks()[0];
     videoTrack.enabled = !videoTrack.enabled;
+
     videoBtn.querySelector("span").textContent = videoTrack.enabled ? "Stop Video" : "Start Video";
 };
-
-endCallBtn.onclick = () => {
-    window.location.reload();
-};
-
-// Auto join if ?room=ID
-const params = new URLSearchParams(window.location.search);
-const autoJoin = params.get("room");
-
-if (autoJoin) {
-    roomIdInput.value = autoJoin;
-    joinCallBtn.click();
-}
