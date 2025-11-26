@@ -37,19 +37,39 @@ body, html {
     width: 100%;
     height: 100%;
     position: relative;
+
+    /* multi‑peer friendly */
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
+    align-content: center;
+    gap: 10px;
 }
 
-/* Remote video — stays inside screen without scrolling */
-#video-grid video:not(.local-video) {
+/* Generic remote video style (multi‑person layout) */
+.remote-video {
+    flex: 1 1 calc(50% - 20px);
+    max-width: calc(50% - 20px);
+    max-height: calc(50% - 20px);
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: black;
+    border-radius: 6px;
+}
+
+/* When exactly ONE remote is in the call -> fullscreen */
+.remote-video.fullscreen-remote {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     max-width: 100%;
     max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    background: black;
+    flex: none;
+    border-radius: 0;
+    object-fit: contain; /* or cover if you want it to crop */
+    z-index: 1;
 }
 
 /* Local video (small preview) */
@@ -111,6 +131,7 @@ body, html {
 .end-call-button {
     background-color: #ea4335;
 }
+
 .end-call-button:hover {
     background-color: #d33b2c;
 }
@@ -237,4 +258,22 @@ body, html {
 
 #close-room-info-btn:hover {
     background-color: #3c4043;
+}
+
+/* Join code bubble – bottom‑left, solid light blue "bubble letters" vibe */
+#join-code-badge {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background-color: #8ab4f8; /* solid light blue */
+    color: #202124;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-family: 'Trebuchet MS', 'Comic Sans MS', system-ui, sans-serif;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    z-index: 150;
 }
