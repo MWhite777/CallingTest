@@ -23,6 +23,7 @@ const joinModal = document.getElementById("join-modal");
 const roomInfoModal = document.getElementById("room-info-modal");
 const roomIdDisplay = document.getElementById("room-id-display");
 const roomIdInput = document.getElementById("room-id-input");
+const displayNameInput = document.getElementById("display-name-input");
 const startCallBtn = document.getElementById("start-call-btn");
 const joinCallBtn = document.getElementById("join-call-btn");
 const copyIdBtn = document.getElementById("copy-id-btn");
@@ -32,12 +33,19 @@ const muteBtn = document.getElementById("mute-btn");
 const videoBtn = document.getElementById("video-btn");
 const endCallBtn = document.getElementById("end-call-btn");
 
-// Optional UI
+// Chat / participants UI
+const chatPanel = document.getElementById("chat-panel");
+const chatToggle = document.getElementById("chat-toggle");
+const chatModePublicBtn = document.getElementById("chat-mode-public");
+const chatModePrivateBtn = document.getElementById("chat-mode-private");
+const privateControls = document.getElementById("private-controls");
+const privateRecipientSelect = document.getElementById("private-recipient");
 const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
 const chatSendBtn = document.getElementById("chat-send-btn");
 const participantsList = document.getElementById("participants-list");
-const languageSelect = document.getElementById("language-select");
+
+// Simple subtitles container (optional, not in DOM but kept)
 const subtitlesContainer = document.getElementById("subtitles-container");
 
 // Status label
@@ -70,20 +78,16 @@ if (!joinCodeBadge) {
 let localStream = null;
 let roomRef = null;
 let roomId = null;
-
 let clientId = null;
 let participantsRef = null;
 let myParticipantRef = null;
-
 const peers = {};
-let userSelectedLanguage = "en";
+let userSelectedLanguage = "en"; // reserved if you later add language select
+let displayName = null;
 
-if (languageSelect) {
-  userSelectedLanguage = languageSelect.value || "en";
-  languageSelect.addEventListener("change", (e) => {
-    userSelectedLanguage = e.target.value || "en";
-  });
-}
+// chat state
+let chatMode = "public"; // "public" or "private"
+const participantsMap = {}; // clientId -> { name }
 
 // -----------------------------
 //  ICE SERVERS
@@ -106,20 +110,16 @@ function setStatus(text) {
   if (statusLabel) statusLabel.textContent = "Status: " + text;
   console.log("[Status]", text);
 }
-
 function generateRoomId() {
   return Math.random().toString(36).substring(2, 8);
 }
-
 function clearVideos() {
   if (videoGrid) videoGrid.innerHTML = "";
 }
-
 function updateJoinCodeBadge() {
   if (!joinCodeBadge) return;
   joinCodeBadge.textContent = roomId ? `CODE: ${roomId}` : "CODE: ----";
 }
-
 function updateVideoLayout() {
   if (!videoGrid) return;
   const remoteVideos = videoGrid.querySelectorAll("video.remote-video");
@@ -128,7 +128,6 @@ function updateVideoLayout() {
     remoteVideos[0].classList.add("fullscreen-remote");
   }
 }
-
 function createVideoElement(id, isLocal = false) {
   const v = document.createElement("video");
   v.id = id;
@@ -141,13 +140,11 @@ function createVideoElement(id, isLocal = false) {
   videoGrid.appendChild(v);
   return v;
 }
-
 function addLocalVideo(stream) {
   let video = document.getElementById("video-local");
   if (!video) video = createVideoElement("video-local", true);
   video.srcObject = stream;
 }
-
 function addRemoteVideo(peerId, stream) {
   let peer = peers[peerId];
   if (!peer.videoEl) {
@@ -159,7 +156,6 @@ function addRemoteVideo(peerId, stream) {
   peer.videoEl.play().catch(err => console.warn("play blocked", err));
   updateVideoLayout();
 }
-
 function showRoomInfoModal() {
   roomIdDisplay.textContent = roomId;
   roomInfoModal.style.display = "flex";
@@ -190,10 +186,8 @@ async function startLocalMedia() {
 // -----------------------------
 function createPeerConnectionForPeer(peerId) {
   if (peers[peerId] && peers[peerId].pc) return peers[peerId].pc;
-
   const pc = new RTCPeerConnection(configuration);
   const remoteStream = new MediaStream();
-
   peers[peerId] = { pc, remoteStream, videoEl: null };
 
   if (localStream) {
@@ -207,6 +201,7 @@ function createPeerConnectionForPeer(peerId) {
 
   pc.onicecandidate = (event) => {
     if (!event.candidate) return;
+    if (!roomRef || !clientId) return;
     roomRef.child("signals").child(peerId).child(clientId)
       .child("ice").push(event.candidate.toJSON());
   };
@@ -218,7 +213,6 @@ async function connectToPeer(peerId) {
   const pc = createPeerConnectionForPeer(peerId);
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-
   roomRef.child("signals").child(peerId).child(clientId)
     .child("offer").set({ type: offer.type, sdp: offer.sdp });
 }
@@ -227,13 +221,11 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
   fromRef.child("offer").on("value", async snap => {
     const offer = snap.val();
     if (!offer) return;
-
     const pc = createPeerConnectionForPeer(fromId);
     if (!pc.currentRemoteDescription) {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
       roomRef.child("signals").child(fromId).child(clientId)
         .child("answer").set({ type: answer.type, sdp: answer.sdp });
     }
@@ -258,20 +250,42 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
 // -----------------------------
 //  PARTICIPANTS
 // -----------------------------
-function addParticipantToUI(id) {
+function addParticipantToUI(id, data) {
   if (!participantsList) return;
+  const name = (data && data.name) || id;
+  participantsMap[id] = { name };
+
   let li = document.getElementById("user-" + id);
   if (!li) {
     li = document.createElement("li");
     li.id = "user-" + id;
-    li.textContent = id === clientId ? id + " (You)" : id;
     participantsList.appendChild(li);
+  }
+  li.textContent = id === clientId ? `${name} (You)` : name;
+
+  // update private recipient select
+  if (privateRecipientSelect && id !== clientId) {
+    let opt = privateRecipientSelect.querySelector(`option[value="${id}"]`);
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = name;
+      privateRecipientSelect.appendChild(opt);
+    } else {
+      opt.textContent = name;
+    }
   }
 }
 
 function removeParticipantFromUI(id) {
   const li = document.getElementById("user-" + id);
   if (li) li.remove();
+  delete participantsMap[id];
+
+  if (privateRecipientSelect) {
+    const opt = privateRecipientSelect.querySelector(`option[value="${id}"]`);
+    if (opt) opt.remove();
+  }
 }
 
 function cleanupPeer(peerId) {
@@ -288,17 +302,14 @@ function cleanupPeer(peerId) {
 // -----------------------------
 function startRoomEmptyWatcher() {
   if (!roomRef) return;
-
   const EMPTY_TIMEOUT = 10 * 60 * 1000; // 10 min
   let emptySince = null;
 
   participantsRef.on("value", (snap) => {
     const participants = snap.val();
     const count = participants ? Object.keys(participants).length : 0;
-
     if (count === 0) {
       if (!emptySince) emptySince = Date.now();
-
       const elapsed = Date.now() - emptySince;
       if (elapsed > EMPTY_TIMEOUT) {
         console.log("[Cleanup] Room empty for 10 minutes. Removing...");
@@ -311,14 +322,103 @@ function startRoomEmptyWatcher() {
 }
 
 // -----------------------------
+//  CHAT
+// -----------------------------
+function addChatMessageToUI(message, isPrivate, isOwn) {
+  if (!chatMessages) return;
+  const div = document.createElement("div");
+  div.classList.add("chat-message");
+  if (isPrivate) div.classList.add("private");
+  if (isOwn) div.classList.add("own");
+
+  const fromName = message.fromName || message.sender || "Unknown";
+
+  const meta = document.createElement("div");
+  meta.classList.add("meta");
+  meta.textContent = isPrivate
+    ? `${fromName} (private)`
+    : fromName;
+
+  const body = document.createElement("div");
+  body.classList.add("body");
+  body.textContent = message.text;
+
+  div.appendChild(meta);
+  div.appendChild(body);
+
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function startChatListeners() {
+  if (!roomRef) return;
+
+  const publicRef = roomRef.child("chat").child("public");
+  publicRef.on("child_added", (snap) => {
+    const msg = snap.val();
+    if (!msg) return;
+    const isOwn = msg.fromId === clientId;
+    addChatMessageToUI(msg, false, isOwn);
+  });
+
+  const privateRef = roomRef.child("chat").child("private");
+  privateRef.on("child_added", (snap) => {
+    const msg = snap.val();
+    if (!msg) return;
+    // only show if we are sender or receiver
+    if (msg.fromId === clientId || msg.toId === clientId) {
+      const isOwn = msg.fromId === clientId;
+      addChatMessageToUI(msg, true, isOwn);
+    }
+  });
+}
+
+function sendChat() {
+  if (!roomRef || !chatInput) return;
+  const text = chatInput.value.trim();
+  if (!text) return;
+  if (!clientId || !displayName) {
+    alert("You need a name to chat.");
+    return;
+  }
+
+  if (chatMode === "public") {
+    roomRef.child("chat").child("public").push({
+      fromId: clientId,
+      fromName: displayName,
+      text,
+      ts: Date.now()
+    });
+  } else {
+    if (!privateRecipientSelect) return;
+    const toId = privateRecipientSelect.value;
+    if (!toId) {
+      alert("Select who to send to.");
+      return;
+    }
+    const toName = (participantsMap[toId] && participantsMap[toId].name) || toId;
+    roomRef.child("chat").child("private").push({
+      fromId: clientId,
+      fromName: displayName,
+      toId,
+      toName,
+      text,
+      ts: Date.now()
+    });
+  }
+
+  chatInput.value = "";
+}
+
+// -----------------------------
 //  INIT ROOM
 // -----------------------------
 function initRoomInfra() {
   participantsRef = roomRef.child("participants");
   myParticipantRef = participantsRef.push();
   clientId = myParticipantRef.key;
-
   myParticipantRef.set({
+    name: displayName || "Guest",
     lang: userSelectedLanguage,
     joinedAt: Date.now()
   });
@@ -326,7 +426,8 @@ function initRoomInfra() {
 
   participantsRef.on("child_added", snap => {
     const pid = snap.key;
-    addParticipantToUI(pid);
+    const data = snap.val();
+    addParticipantToUI(pid, data);
     if (pid !== clientId && clientId > pid) connectToPeer(pid);
   });
 
@@ -341,15 +442,22 @@ function initRoomInfra() {
   });
 
   startRoomEmptyWatcher();
+  startChatListeners();
 }
 
 // -----------------------------
 //  CREATE ROOM
 // -----------------------------
 async function createRoom() {
+  const name = displayNameInput ? displayNameInput.value.trim() : "";
+  if (!name) {
+    alert("Please enter your name before starting a call.");
+    return;
+  }
+  displayName = name;
+
   roomId = generateRoomId();
   roomRef = database.ref(`rooms/${roomId}`);
-
   await roomRef.set({ createdAt: Date.now() });
 
   await startLocalMedia();
@@ -357,13 +465,11 @@ async function createRoom() {
 
   joinModal.style.display = "none";
   endCallBtn.classList.remove("hidden");
-
   updateJoinCodeBadge();
   showRoomInfoModal();
 
-  // 🔥 UPDATE URL WITHOUT RELOAD
+  // Update URL WITHOUT reload
   history.replaceState(null, "", `?room=${roomId}`);
-
   setStatus("room created");
 }
 
@@ -371,12 +477,18 @@ async function createRoom() {
 //  JOIN ROOM
 // -----------------------------
 async function joinRoomById(id) {
+  const name = displayNameInput ? displayNameInput.value.trim() : "";
+  if (!name) {
+    alert("Please enter your name before joining a call.");
+    return;
+  }
+  displayName = name;
+
   const snap = await database.ref(`rooms/${id}`).once("value");
   if (!snap.exists()) {
     alert("Room does not exist.");
     return;
   }
-
   roomId = id;
   roomRef = database.ref(`rooms/${roomId}`);
 
@@ -385,12 +497,10 @@ async function joinRoomById(id) {
 
   joinModal.style.display = "none";
   endCallBtn.classList.remove("hidden");
-
   updateJoinCodeBadge();
 
-  // 🔥 Update URL to the joined room
+  // Update URL to the joined room
   history.replaceState(null, "", `?room=${roomId}`);
-
   setStatus("joined room");
 }
 
@@ -399,79 +509,142 @@ async function joinRoomById(id) {
 // -----------------------------
 async function endCall() {
   Object.keys(peers).forEach(pid => cleanupPeer(pid));
-
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
     localStream = null;
   }
-
   clearVideos();
-
   if (myParticipantRef) await myParticipantRef.remove();
   if (roomRef) roomRef.off();
-
   roomRef = null;
   roomId = null;
   clientId = null;
-
   updateJoinCodeBadge();
   joinModal.style.display = "flex";
   roomInfoModal.style.display = "none";
   endCallBtn.classList.add("hidden");
 
-  // 🔥 Reset URL back to homepage
+  // Reset URL back to base
   history.replaceState(null, "", "/CallingTest");
-
   setStatus("idle");
 }
 
 // -----------------------------
 //  EVENTS
 // -----------------------------
-startCallBtn.onclick = createRoom;
-joinCallBtn.onclick = () => joinRoomById(roomIdInput.value.trim());
-endCallBtn.onclick = endCall;
-
-copyIdBtn.onclick = () => {
-  navigator.clipboard.writeText(roomId);
-  copyIdBtn.textContent = "Copied!";
-  setTimeout(() => (copyIdBtn.textContent = "Copy ID"), 2000);
-};
-
-copyLinkBtn.onclick = () => {
-  const url = `${location.origin}${location.pathname}?room=${roomId}`;
-  navigator.clipboard.writeText(url);
-  copyLinkBtn.textContent = "Link Copied!";
-  setTimeout(() => (copyLinkBtn.textContent = "Copy Link"), 2000);
-};
-
-closeRoomInfoBtn.onclick = () => (roomInfoModal.style.display = "none");
+if (startCallBtn) {
+  startCallBtn.onclick = createRoom;
+}
+if (joinCallBtn) {
+  joinCallBtn.onclick = () => {
+    const inputId = roomIdInput ? roomIdInput.value.trim() : "";
+    if (!inputId) {
+      alert("Enter a room ID to join.");
+      return;
+    }
+    joinRoomById(inputId);
+  };
+}
+if (endCallBtn) {
+  endCallBtn.onclick = endCall;
+}
+if (copyIdBtn) {
+  copyIdBtn.onclick = () => {
+    if (!roomId) return;
+    navigator.clipboard.writeText(roomId);
+    const original = copyIdBtn.textContent;
+    copyIdBtn.textContent = "Copied!";
+    setTimeout(() => (copyIdBtn.textContent = original), 2000);
+  };
+}
+if (copyLinkBtn) {
+  copyLinkBtn.onclick = () => {
+    if (!roomId) return;
+    const url = `${location.origin}${location.pathname}?room=${roomId}`;
+    navigator.clipboard.writeText(url);
+    const original = copyLinkBtn.textContent;
+    copyLinkBtn.textContent = "Link Copied!";
+    setTimeout(() => (copyLinkBtn.textContent = original), 2000);
+  };
+}
+if (closeRoomInfoBtn) {
+  closeRoomInfoBtn.onclick = () => (roomInfoModal.style.display = "none");
+}
 
 // Mute
-muteBtn.onclick = () => {
-  const track = localStream.getAudioTracks()[0];
-  track.enabled = !track.enabled;
-  muteBtn.innerHTML = track.enabled
-    ? '<i class="fas fa-microphone"></i><span>Mute</span>'
-    : '<i class="fas fa-microphone-slash"></i><span>Unmute</span>';
-};
-
+if (muteBtn) {
+  muteBtn.onclick = () => {
+    if (!localStream) return;
+    const track = localStream.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    muteBtn.innerHTML = track.enabled
+      ? '<i class="fas fa-microphone"></i><span>Mute</span>'
+      : '<i class="fas fa-microphone-slash"></i><span>Unmute</span>';
+  };
+}
 // Video
-videoBtn.onclick = () => {
-  const track = localStream.getVideoTracks()[0];
-  track.enabled = !track.enabled;
-  videoBtn.innerHTML = track.enabled
-    ? '<i class="fas fa-video"></i><span>Stop Video</span>'
-    : '<i class="fas fa-video-slash"></i><span>Start Video</span>';
-};
+if (videoBtn) {
+  videoBtn.onclick = () => {
+    if (!localStream) return;
+    const track = localStream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    videoBtn.innerHTML = track.enabled
+      ? '<i class="fas fa-video"></i><span>Stop Video</span>'
+      : '<i class="fas fa-video-slash"></i><span>Start Video</span>';
+  };
+}
+
+// Chat panel toggle
+if (chatToggle && chatPanel) {
+  chatToggle.addEventListener("click", () => {
+    const isOpen = chatPanel.classList.toggle("open");
+    chatPanel.classList.toggle("collapsed", !isOpen);
+    const icon = chatToggle.querySelector("i");
+    if (icon) {
+      icon.className = isOpen ? "fas fa-chevron-right" : "fas fa-chevron-left";
+    }
+  });
+}
+
+// Chat mode buttons
+if (chatModePublicBtn && chatModePrivateBtn) {
+  chatModePublicBtn.addEventListener("click", () => {
+    chatMode = "public";
+    chatModePublicBtn.classList.add("active");
+    chatModePrivateBtn.classList.remove("active");
+    if (privateControls) privateControls.classList.add("hidden");
+  });
+  chatModePrivateBtn.addEventListener("click", () => {
+    chatMode = "private";
+    chatModePrivateBtn.classList.add("active");
+    chatModePublicBtn.classList.remove("active");
+    if (privateControls) privateControls.classList.remove("hidden");
+  });
+}
+
+// Chat send handlers
+if (chatSendBtn && chatInput) {
+  chatSendBtn.addEventListener("click", sendChat);
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendChat();
+    }
+  });
+}
 
 // -----------------------------
-//  AUTO-JOIN FROM URL
+//  AUTO-JOIN FROM URL (no auto connect)
 // -----------------------------
 window.addEventListener("load", () => {
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get("room");
-  if (urlRoom) joinRoomById(urlRoom);
+  if (urlRoom && roomIdInput) {
+    roomIdInput.value = urlRoom;
+    // Do NOT auto-join: user must enter name and click join
+  }
 });
 
 // Cleanup on tab close
