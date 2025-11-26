@@ -25,7 +25,6 @@ const roomInfoModal = document.getElementById("room-info-modal");
 const roomIdDisplay = document.getElementById("room-id-display");
 const roomIdInput = document.getElementById("room-id-input");
 const displayNameInput = document.getElementById("display-name-input");
-
 const startCallBtn = document.getElementById("start-call-btn");
 const joinCallBtn = document.getElementById("join-call-btn");
 const copyIdBtn = document.getElementById("copy-id-btn");
@@ -102,6 +101,10 @@ const participantNames = {};
 const CHAT_TARGET_PUBLIC = "__public__";
 let chatListenersStarted = false;
 
+// Mobile: wake lock + iOS overlay
+let wakeLock = null;
+let tapOverlayShown = false;
+
 // -----------------------------
 //  ICE SERVERS
 // -----------------------------
@@ -123,16 +126,20 @@ function setStatus(text) {
   if (statusLabel) statusLabel.textContent = "Status: " + text;
   console.log("[Status]", text);
 }
+
 function generateRoomId() {
   return Math.random().toString(36).substring(2, 8);
 }
+
 function clearVideos() {
   if (videoGrid) videoGrid.innerHTML = "";
 }
+
 function updateJoinCodeBadge() {
   if (!joinCodeBadge) return;
   joinCodeBadge.textContent = roomId ? `CODE: ${roomId}` : "CODE: ----";
 }
+
 function updateVideoLayout() {
   if (!videoGrid) return;
   const remoteVideos = videoGrid.querySelectorAll("video.remote-video");
@@ -141,11 +148,13 @@ function updateVideoLayout() {
     remoteVideos[0].classList.add("fullscreen-remote");
   }
 }
+
 function createVideoElement(id, isLocal = false) {
   const v = document.createElement("video");
   v.id = id;
   v.autoplay = true;
   v.playsInline = true;
+  v.setAttribute("playsinline", "true"); // iOS hint
   if (isLocal) {
     v.muted = true;
     v.classList.add("local-video");
@@ -153,26 +162,93 @@ function createVideoElement(id, isLocal = false) {
   videoGrid.appendChild(v);
   return v;
 }
+
 function addLocalVideo(stream) {
   let video = document.getElementById("video-local");
   if (!video) video = createVideoElement("video-local", true);
   video.srcObject = stream;
 }
+
+function maybeShowTapToUnmuteOverlay() {
+  // Only show once, and only on iOS
+  if (tapOverlayShown) return;
+  const ua = navigator.userAgent || "";
+  const isiOS = /iPhone|iPad|iPod/i.test(ua);
+  if (!isiOS) return;
+
+  tapOverlayShown = true;
+  const overlay = document.createElement("div");
+  overlay.id = "tap-to-unmute-overlay";
+  overlay.textContent = "Tap to enable audio";
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.75)";
+  overlay.style.color = "#fff";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.fontSize = "20px";
+  overlay.style.zIndex = "9999";
+  overlay.style.textAlign = "center";
+  overlay.style.cursor = "pointer";
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", () => {
+    const videos = document.querySelectorAll("video");
+    videos.forEach(v => {
+      v.muted = false;
+      v.play().catch(() => {});
+    });
+    overlay.remove();
+  });
+}
+
 function addRemoteVideo(peerId, stream) {
   let peer = peers[peerId];
   if (!peer.videoEl) {
     const v = createVideoElement("remote-" + peerId, false);
     v.classList.add("remote-video");
+    // remote audio should not be muted
+    v.muted = false;
     peer.videoEl = v;
   }
   peer.videoEl.srcObject = stream;
   peer.videoEl.play().catch(err => console.warn("play blocked", err));
   updateVideoLayout();
+
+  // iOS audio unlock overlay
+  maybeShowTapToUnmuteOverlay();
 }
+
 function showRoomInfoModal() {
   if (!roomIdDisplay || !roomInfoModal) return;
   roomIdDisplay.textContent = roomId;
   roomInfoModal.style.display = "flex";
+}
+
+// Wake lock helpers
+async function enableWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    console.log("[WakeLock] acquired");
+    wakeLock.addEventListener("release", () => {
+      console.log("[WakeLock] released");
+    });
+  } catch (err) {
+    console.warn("[WakeLock] error:", err);
+  }
+}
+
+async function disableWakeLock() {
+  try {
+    if (wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch (err) {
+    console.warn("[WakeLock] release error:", err);
+  }
 }
 
 // -----------------------------
@@ -213,11 +289,13 @@ function createPeerConnectionForPeer(peerId) {
     event.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
     addRemoteVideo(peerId, remoteStream);
   };
+
   pc.onicecandidate = (event) => {
     if (!event.candidate || !roomRef || !clientId) return;
     roomRef.child("signals").child(peerId).child(clientId)
       .child("ice").push(event.candidate.toJSON());
   };
+
   return pc;
 }
 
@@ -242,6 +320,7 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
         .child("answer").set({ type: answer.type, sdp: answer.sdp });
     }
   });
+
   fromRef.child("answer").on("value", async snap => {
     const ans = snap.val();
     if (!ans) return;
@@ -250,6 +329,7 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
       await pc.setRemoteDescription(new RTCSessionDescription(ans));
     }
   });
+
   fromRef.child("ice").on("child_added", snap => {
     const cand = snap.val();
     if (!cand) return;
@@ -298,6 +378,7 @@ function addParticipantToUI(id, data) {
 
   rebuildChatTargetSelect();
 }
+
 function removeParticipantFromUI(id) {
   delete participantNames[id];
   const li = document.getElementById("user-" + id);
@@ -341,11 +422,10 @@ function startRoomEmptyWatcher() {
 
 // -----------------------------
 //  CHAT: PUBLIC + PRIVATE (Option B)
-// rooms/{roomId}/chat/public/{msgId}
-// rooms/{roomId}/chat/private/{msgId} => { fromId, toId, text, ts }
 // -----------------------------
 function addChatMessageToUI(msg, scope) {
   if (!chatMessages) return;
+
   const fromId = msg.fromId || "unknown";
   const fromName = msg.fromName || participantNames[fromId] || fromId;
   const toId = msg.toId || null;
@@ -483,6 +563,7 @@ function initRoomInfra() {
     addParticipantToUI(pid, pdata);
     if (pid !== clientId && clientId > pid) connectToPeer(pid);
   });
+
   participantsRef.on("child_removed", snap => {
     const pid = snap.key;
     removeParticipantFromUI(pid);
@@ -539,6 +620,8 @@ async function createRoom() {
   await roomRef.set({ createdAt: Date.now() });
 
   await startLocalMedia();
+  await enableWakeLock();
+
   initRoomInfra();
 
   if (joinModal) joinModal.style.display = "none";
@@ -567,10 +650,13 @@ async function joinRoomById(id) {
     alert("Room does not exist.");
     return;
   }
+
   roomId = id;
   roomRef = database.ref(`rooms/${roomId}`);
 
   await startLocalMedia();
+  await enableWakeLock();
+
   initRoomInfra();
 
   if (joinModal) joinModal.style.display = "none";
@@ -589,6 +675,7 @@ async function endCall() {
   console.log("[Call] Ending call");
 
   Object.keys(peers).forEach(pid => cleanupPeer(pid));
+
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
     localStream = null;
@@ -605,6 +692,7 @@ async function endCall() {
 
   stopChatListeners();
   hideChatUI();
+  await disableWakeLock();
 
   if (roomRef) {
     roomRef.off();
@@ -635,6 +723,7 @@ async function endCall() {
 if (startCallBtn) {
   startCallBtn.onclick = createRoom;
 }
+
 if (joinCallBtn) {
   joinCallBtn.onclick = () => {
     const id = roomIdInput ? roomIdInput.value.trim() : "";
@@ -645,6 +734,7 @@ if (joinCallBtn) {
     joinRoomById(id);
   };
 }
+
 if (endCallBtn) {
   endCallBtn.onclick = endCall;
 }
@@ -658,6 +748,7 @@ if (copyIdBtn) {
     setTimeout(() => (copyIdBtn.textContent = old), 2000);
   };
 }
+
 if (copyLinkBtn) {
   copyLinkBtn.onclick = () => {
     if (!roomId) return;
@@ -668,6 +759,7 @@ if (copyLinkBtn) {
     setTimeout(() => (copyLinkBtn.textContent = old), 2000);
   };
 }
+
 if (closeRoomInfoBtn) {
   closeRoomInfoBtn.onclick = () => {
     if (roomInfoModal) roomInfoModal.style.display = "none";
@@ -686,6 +778,7 @@ if (muteBtn) {
       : '<i class="fas fa-microphone-slash"></i><span>Unmute</span>';
   };
 }
+
 // Video
 if (videoBtn) {
   videoBtn.onclick = () => {
@@ -712,12 +805,14 @@ if (chatToggleBtn && chatPanel) {
     }
   });
 }
+
 if (chatCloseBtn && chatPanel) {
   chatCloseBtn.addEventListener("click", () => {
     chatPanel.classList.remove("chat-panel--open");
     chatPanel.classList.add("chat-panel--hidden");
   });
 }
+
 if (chatSendBtn && chatInput) {
   chatSendBtn.addEventListener("click", sendChatMessage);
   chatInput.addEventListener("keydown", (e) => {
@@ -741,9 +836,10 @@ window.addEventListener("load", () => {
 });
 
 // Cleanup on tab close
-window.addEventListener("beforeunload", () => {
+window.addEventListener("beforeunload", async () => {
   try {
     if (myParticipantRef) myParticipantRef.remove();
     if (localStream) localStream.getTracks().forEach(t => t.stop());
+    await disableWakeLock();
   } catch {}
 });
