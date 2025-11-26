@@ -1,6 +1,7 @@
 // -----------------------------
 //  Firebase Initialization
 // -----------------------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDl1rBlKbZezkdPHQovpXR_QZ_1v2w-sQg",
   authDomain: "my-calling-test.firebaseapp.com",
@@ -13,16 +14,15 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+console.log("[Firebase] Initialized");
 
 // -----------------------------
-//  TRANSLATIONS
+//  TRANSLATIONS (EN / RU)
 // -----------------------------
 const translations = {
   en: {
-    appTitle: "Firebase Video Call",
-    languageLabel: "Language:",
-    participantsTitle: "Participants",
     joinTitle: "Join or Start a Call",
+    languageLabel: "Language:",
     namePlaceholder: "Enter your name",
     roomPlaceholder: "Enter Room ID to join",
     joinCall: "Join Call",
@@ -37,13 +37,6 @@ const translations = {
     stopVideo: "Stop Video",
     startVideo: "Start Video",
     endCall: "End Call",
-    selfView: "Self View",
-    qualityLabel: "Quality",
-    qualityAuto: "Auto",
-    quality480: "480p",
-    quality720: "720p",
-    quality1080: "1080p",
-    quality2160: "4K",
     chatTitle: "Chat",
     chatTo: "To:",
     chatPlaceholder: "Type a message...",
@@ -53,12 +46,37 @@ const translations = {
     statusReady: "media ready",
     statusCreated: "room created",
     statusJoined: "joined room",
-    statusEnded: "idle",
     newMessageFrom: "New message from",
     imageMessage: "[image]"
   },
-  ru: { 
-    ... same as before ...
+  ru: {
+    joinTitle: "Присоединиться или создать звонок",
+    languageLabel: "Язык:",
+    namePlaceholder: "Введите ваше имя",
+    roomPlaceholder: "Введите ID комнаты",
+    joinCall: "Присоединиться",
+    startCall: "Создать комнату",
+    roomReadyTitle: "Ваша комната готова!",
+    roomReadyText: "Поделитесь этим ID или ссылкой, чтобы другие могли присоединиться.",
+    copyId: "Копировать ID",
+    copyLink: "Копировать ссылку",
+    close: "Закрыть",
+    mute: "Выключить микрофон",
+    unmute: "Включить микрофон",
+    stopVideo: "Выключить видео",
+    startVideo: "Включить видео",
+    endCall: "Завершить звонок",
+    chatTitle: "Чат",
+    chatTo: "Кому:",
+    chatPlaceholder: "Напишите сообщение...",
+    everyone: "Все",
+    statusIdle: "ожидание",
+    statusRequesting: "запрос медиа",
+    statusReady: "камера готова",
+    statusCreated: "комната создана",
+    statusJoined: "подключено",
+    newMessageFrom: "Новое сообщение от",
+    imageMessage: "[изображение]"
   }
 };
 
@@ -70,26 +88,22 @@ let currentLanguage = "en";
 const videoGrid = document.getElementById("video-grid");
 const joinModal = document.getElementById("join-modal");
 const roomInfoModal = document.getElementById("room-info-modal");
-
 const roomIdDisplay = document.getElementById("room-id-display");
 const roomIdInput = document.getElementById("room-id-input");
 const displayNameInput = document.getElementById("display-name-input");
-
 const startCallBtn = document.getElementById("start-call-btn");
 const joinCallBtn = document.getElementById("join-call-btn");
-
 const copyIdBtn = document.getElementById("copy-id-btn");
 const copyLinkBtn = document.getElementById("copy-link-btn");
 const closeRoomInfoBtn = document.getElementById("close-room-info-btn");
-
 const muteBtn = document.getElementById("mute-btn");
 const videoBtn = document.getElementById("video-btn");
 const endCallBtn = document.getElementById("end-call-btn");
-const selfViewBtn = document.getElementById("selfview-btn");
 
-const resolutionSelect = document.getElementById("resolution-select");
+// language selector (before joining)
 const languageSelect = document.getElementById("language-select");
 
+// Chat panel elements
 const chatPanel = document.getElementById("chat-panel");
 const chatToggleBtn = document.getElementById("chat-toggle-btn");
 const chatCloseBtn = document.getElementById("chat-close-btn");
@@ -97,16 +111,12 @@ const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
 const chatSendBtn = document.getElementById("chat-send-btn");
 const chatTargetSelect = document.getElementById("chat-target-select");
-const chatNotification = document.getElementById("chat-notification");
-const chatUnreadDot = document.getElementById("chat-unread-dot");
 
-const emojiBtn = document.getElementById("emoji-btn");
-const emojiPicker = document.getElementById("emoji-picker");
-
+// Optional future UI
 const participantsList = document.getElementById("participants-list");
 const subtitlesContainer = document.getElementById("subtitles-container");
 
-// Status label setup (unchanged)
+// Status label
 let statusLabel = document.getElementById("status-label");
 if (!statusLabel) {
   statusLabel = document.createElement("div");
@@ -117,11 +127,10 @@ if (!statusLabel) {
   statusLabel.style.color = "#ccc";
   statusLabel.style.fontSize = "12px";
   statusLabel.style.fontFamily = "monospace";
-  statusLabel.textContent = "Status: idle";
   document.body.appendChild(statusLabel);
 }
 
-// Join code badge setup (unchanged)
+// Join code badge
 let joinCodeBadge = document.getElementById("join-code-badge");
 if (!joinCodeBadge) {
   joinCodeBadge = document.createElement("div");
@@ -130,8 +139,17 @@ if (!joinCodeBadge) {
   document.body.appendChild(joinCodeBadge);
 }
 
+// Chat notification toast (created here so HTML doesn't need it)
+let chatNotification = document.getElementById("chat-notification");
+if (!chatNotification) {
+  chatNotification = document.createElement("div");
+  chatNotification.id = "chat-notification";
+  chatNotification.className = "chat-notification hidden";
+  document.body.appendChild(chatNotification);
+}
+
 // -----------------------------
-//  STATE (unchanged)
+//  STATE
 // -----------------------------
 let localStream = null;
 let roomRef = null;
@@ -140,19 +158,26 @@ let clientId = null;
 let participantsRef = null;
 let myParticipantRef = null;
 const peers = {};
+// voice activity analysis per stream
 const peerVAD = {};
+let audioCtx = null;
+
+let userSelectedLanguage = "en";
+if (languageSelect) {
+  userSelectedLanguage = languageSelect.value || "en";
+  currentLanguage = userSelectedLanguage;
+}
+
 let displayName = "";
+// map clientId -> name for chat / UI
 const participantNames = {};
+// chat state
 const CHAT_TARGET_PUBLIC = "__public__";
 let chatListenersStarted = false;
-let pinnedPeerId = null;
-let selfViewMode = "small";
-let audioCtx = null;
-let desiredResolution = "auto";
-const chatMessageElements = {};
+let chatNotificationTimeout = null;
 
 // -----------------------------
-//  ICE SERVERS (unchanged)
+//  ICE SERVERS
 // -----------------------------
 const configuration = {
   iceServers: [
@@ -166,63 +191,428 @@ const configuration = {
 };
 
 // -----------------------------
-//  LANGUAGE + STATUS (unchanged)
+//  LANGUAGE + STATUS HELPERS
 // -----------------------------
-function applyLanguage(lang) { ... }
-function setStatus(text) { ... }
+function applyLanguage(lang) {
+  if (!translations[lang]) lang = "en";
+  currentLanguage = lang;
+  const t = translations[lang];
 
-// -----------------------------
-//  VIDEO / SELF VIEW / LAYOUT (unchanged)
-// -----------------------------
-function createVideoElement() { ... }
-function updateVideoLayout() { ... }
-function setupVoiceActivityForStream() { ... }
+  document.documentElement.lang = lang === "ru" ? "ru" : "en";
 
-// ----------------------------------------------------
-//  CHAT — UPDATED (REACTIONS REMOVED)
-// ----------------------------------------------------
-function addChatMessageToUI(msg, scope, msgId) {
-  if (!chatMessages) return;
+  // Text content
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    if (key && t[key]) {
+      el.textContent = t[key];
+    }
+  });
 
-  const fromId = msg.fromId;
-  const fromName = msg.fromName || participantNames[fromId] || fromId;
-  const toId = msg.toId;
+  // Placeholders
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+    const key = el.getAttribute("data-i18n-placeholder");
+    if (key && t[key]) {
+      el.placeholder = t[key];
+    }
+  });
 
-  const key = (scope || "public") + ":" + msgId;
-  let wrapper = chatMessageElements[key];
-  if (!wrapper) {
-    wrapper = document.createElement("div");
-    wrapper.className = "chat-message";
-    chatMessageElements[key] = wrapper;
-    chatMessages.appendChild(wrapper);
+  // Update mute / video button labels based on current state
+  if (muteBtn) {
+    const enabled =
+      localStream && localStream.getAudioTracks()[0]
+        ? localStream.getAudioTracks()[0].enabled
+        : true;
+    muteBtn.innerHTML = enabled
+      ? `<i class="fas fa-microphone"></i><span>${t.mute}</span>`
+      : `<i class="fas fa-microphone-slash"></i><span>${t.unmute}</span>`;
+  }
+  if (videoBtn) {
+    const enabled =
+      localStream && localStream.getVideoTracks()[0]
+        ? localStream.getVideoTracks()[0].enabled
+        : true;
+    videoBtn.innerHTML = enabled
+      ? `<i class="fas fa-video"></i><span>${t.stopVideo}</span>`
+      : `<i class="fas fa-video-slash"></i><span>${t.startVideo}</span>`;
   }
 
-  wrapper.innerHTML = "";
+  // Update "Everyone" label in current chat target select
+  rebuildChatTargetSelect();
+  // default status
+  setStatus("statusIdle");
+}
 
-  // -------- meta (NO REACTION UI) --------
-  const metaEl = document.createElement("div");
-  metaEl.className = "chat-message-meta";
+function setStatus(keyOrText) {
+  const t = translations[currentLanguage] || translations.en;
+  const text = t[keyOrText] || keyOrText;
+  if (statusLabel) statusLabel.textContent = "Status: " + text;
+  console.log("[Status]", text);
+}
 
-  let metaText = "";
-  const t = translations[currentLanguage];
+// initial language apply
+applyLanguage(currentLanguage);
 
-  if (scope === "public") {
-    metaText = `${fromName} → ${t.everyone}`;
+// Update language on change
+if (languageSelect) {
+  languageSelect.addEventListener("change", (e) => {
+    userSelectedLanguage = e.target.value || "en";
+    applyLanguage(userSelectedLanguage);
+  });
+}
+
+// -----------------------------
+//  HELPERS
+// -----------------------------
+function generateRoomId() {
+  return Math.random().toString(36).substring(2, 8);
+}
+
+function clearVideos() {
+  if (videoGrid) videoGrid.innerHTML = "";
+}
+
+function updateJoinCodeBadge() {
+  if (!joinCodeBadge) return;
+  joinCodeBadge.textContent = roomId ? `CODE: ${roomId}` : "CODE: ----";
+}
+
+// Auto layout detection
+function updateVideoLayout() {
+  if (!videoGrid) return;
+  const remoteVideos = Array.from(
+    videoGrid.querySelectorAll("video.remote-video")
+  );
+
+  remoteVideos.forEach(v => {
+    v.classList.remove("fullscreen-remote");
+    v.style.flexBasis = "";
+    v.style.maxWidth = "";
+  });
+
+  const count = remoteVideos.length;
+
+  if (count === 1) {
+    remoteVideos[0].classList.add("fullscreen-remote");
+  } else if (count === 2) {
+    remoteVideos.forEach(v => {
+      v.style.flexBasis = "calc(50% - 20px)";
+      v.style.maxWidth = "calc(50% - 20px)";
+    });
+  } else if (count >= 3 && count <= 4) {
+    remoteVideos.forEach(v => {
+      v.style.flexBasis = "calc(50% - 20px)";
+      v.style.maxWidth = "calc(50% - 20px)";
+    });
+  } else if (count >= 5) {
+    remoteVideos.forEach(v => {
+      v.style.flexBasis = "calc(33.333% - 20px)";
+      v.style.maxWidth = "calc(33.333% - 20px)";
+    });
+  }
+}
+
+// Video element helpers
+function createVideoElement(id, isLocal = false) {
+  const v = document.createElement("video");
+  v.id = id;
+  v.autoplay = true;
+  v.playsInline = true;
+  if (isLocal) {
+    v.muted = true;
+    v.classList.add("local-video");
   } else {
-    if (fromId === clientId) {
-      metaText = `You → ${participantNames[toId] || toId} (private)`;
-    } else if (toId === clientId) {
-      metaText = `${fromName} → You (private)`;
+    v.classList.add("remote-video");
+  }
+  videoGrid.appendChild(v);
+  return v;
+}
+
+function addLocalVideo(stream) {
+  let video = document.getElementById("video-local");
+  if (!video) video = createVideoElement("video-local", true);
+  video.srcObject = stream;
+  setupVoiceActivityForStream("local", stream, video);
+}
+
+function addRemoteVideo(peerId, stream) {
+  let peer = peers[peerId];
+  if (!peer.videoEl) {
+    const v = createVideoElement("remote-" + peerId, false);
+    peer.videoEl = v;
+  }
+  peer.videoEl.srcObject = stream;
+  peer.videoEl.play().catch(err => console.warn("play blocked", err));
+  updateVideoLayout();
+  setupVoiceActivityForStream(peerId, stream, peer.videoEl);
+}
+
+function showRoomInfoModal() {
+  if (!roomIdDisplay || !roomInfoModal) return;
+  roomIdDisplay.textContent = roomId;
+  roomInfoModal.style.display = "flex";
+}
+
+// -----------------------------
+//  AUDIO / VOICE ACTIVITY (VAD)
+// -----------------------------
+function ensureAudioCtx() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  return audioCtx;
+}
+
+function setupVoiceActivityForStream(id, stream, videoEl) {
+  try {
+    const ctx = ensureAudioCtx();
+    if (!ctx || !stream) return;
+
+    // Stop previous VAD for this id
+    if (peerVAD[id] && peerVAD[id].rafId) {
+      cancelAnimationFrame(peerVAD[id].rafId);
+    }
+
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    function tick() {
+      analyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+      const avg = sum / dataArray.length;
+      const speaking = avg > 40; // simple threshold
+
+      if (videoEl) {
+        if (speaking) videoEl.classList.add("speaking");
+        else videoEl.classList.remove("speaking");
+      }
+
+      const entry = peerVAD[id];
+      if (!entry || entry.stopped) return;
+      peerVAD[id].rafId = requestAnimationFrame(tick);
+    }
+
+    peerVAD[id] = { analyser, stream, videoEl, rafId: requestAnimationFrame(tick) };
+  } catch (e) {
+    console.warn("VAD not available", e);
+  }
+}
+
+// -----------------------------
+//  LOCAL MEDIA
+// -----------------------------
+async function startLocalMedia() {
+  if (localStream) return localStream;
+  try {
+    setStatus("statusRequesting");
+    ensureAudioCtx();
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+    addLocalVideo(localStream);
+    setStatus("statusReady");
+    return localStream;
+  } catch (err) {
+    console.error(err);
+    alert("Could not access camera/microphone.");
+    throw err;
+  }
+}
+
+// -----------------------------
+//  WEBRTC
+// -----------------------------
+function createPeerConnectionForPeer(peerId) {
+  if (peers[peerId] && peers[peerId].pc) return peers[peerId].pc;
+  const pc = new RTCPeerConnection(configuration);
+  const remoteStream = new MediaStream();
+  peers[peerId] = { pc, remoteStream, videoEl: null };
+  if (localStream) {
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+  pc.ontrack = (event) => {
+    event.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
+    addRemoteVideo(peerId, remoteStream);
+  };
+  pc.onicecandidate = (event) => {
+    if (!event.candidate || !roomRef || !clientId) return;
+    roomRef.child("signals").child(peerId).child(clientId)
+      .child("ice").push(event.candidate.toJSON());
+  };
+  return pc;
+}
+
+async function connectToPeer(peerId) {
+  const pc = createPeerConnectionForPeer(peerId);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  roomRef.child("signals").child(peerId).child(clientId)
+    .child("offer").set({ type: offer.type, sdp: offer.sdp });
+}
+
+function setupSignalHandlersForPeer(fromId, fromRef) {
+  fromRef.child("offer").on("value", async snap => {
+    const offer = snap.val();
+    if (!offer) return;
+    const pc = createPeerConnectionForPeer(fromId);
+    if (!pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      roomRef.child("signals").child(fromId).child(clientId)
+        .child("answer").set({ type: answer.type, sdp: answer.sdp });
+    }
+  });
+  fromRef.child("answer").on("value", async snap => {
+    const ans = snap.val();
+    if (!ans) return;
+    const pc = createPeerConnectionForPeer(fromId);
+    if (!pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(new RTCSessionDescription(ans));
+    }
+  });
+  fromRef.child("ice").on("child_added", snap => {
+    const cand = snap.val();
+    if (!cand) return;
+    const pc = createPeerConnectionForPeer(fromId);
+    pc.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
+  });
+}
+
+// -----------------------------
+//  PARTICIPANTS + PRIVATE CHAT TARGETS
+// -----------------------------
+function rebuildChatTargetSelect() {
+  if (!chatTargetSelect) return;
+  const t = translations[currentLanguage] || translations.en;
+  chatTargetSelect.innerHTML = "";
+  // Everyone (public)
+  const optAll = document.createElement("option");
+  optAll.value = CHAT_TARGET_PUBLIC;
+  optAll.textContent = t.everyone || "Everyone";
+  chatTargetSelect.appendChild(optAll);
+  Object.keys(participantNames).forEach(id => {
+    const name = participantNames[id] || id;
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = id === clientId ? `${name} (You)` : name;
+    chatTargetSelect.appendChild(opt);
+  });
+}
+
+function addParticipantToUI(id, data) {
+  const name = (data && data.name) || id;
+  participantNames[id] = name;
+  if (participantsList) {
+    let li = document.getElementById("user-" + id);
+    if (!li) {
+      li = document.createElement("li");
+      li.id = "user-" + id;
+      li.textContent = id === clientId ? `${name} (You)` : name;
+      participantsList.appendChild(li);
     } else {
-      metaText = `${fromName} (private)`;
+      li.textContent = id === clientId ? `${name} (You)` : name;
     }
   }
+  rebuildChatTargetSelect();
+}
 
-  const span = document.createElement("span");
-  span.textContent = metaText;
-  metaEl.appendChild(span);
+function removeParticipantFromUI(id) {
+  delete participantNames[id];
+  const li = document.getElementById("user-" + id);
+  if (li && participantsList) li.remove();
+  rebuildChatTargetSelect();
+}
 
-  // -------- message text / image --------
+function cleanupPeer(peerId) {
+  const p = peers[peerId];
+  if (!p) return;
+  if (p.pc) p.pc.close();
+  if (p.videoEl) p.videoEl.remove();
+  delete peers[peerId];
+  if (peerVAD[peerId] && peerVAD[peerId].rafId) {
+    cancelAnimationFrame(peerVAD[peerId].rafId);
+  }
+  delete peerVAD[peerId];
+  updateVideoLayout();
+}
+
+// -----------------------------
+//  ROOM AUTO‑DELETE AFTER EMPTY FOR 10 MIN
+// -----------------------------
+function startRoomEmptyWatcher() {
+  if (!roomRef || !participantsRef) return;
+  const EMPTY_TIMEOUT = 10 * 60 * 1000; // 10 min
+  let emptySince = null;
+  participantsRef.on("value", (snap) => {
+    const participants = snap.val();
+    const count = participants ? Object.keys(participants).length : 0;
+    if (count === 0) {
+      if (!emptySince) emptySince = Date.now();
+      const elapsed = Date.now() - emptySince;
+      if (elapsed > EMPTY_TIMEOUT) {
+        console.log("[Cleanup] Room empty for 10 minutes. Removing room (and chats)...");
+        roomRef.remove();
+      }
+    } else {
+      emptySince = null;
+    }
+  });
+}
+
+// -----------------------------
+//  CHAT: PUBLIC + PRIVATE + IMAGES
+// -----------------------------
+function chatPanelIsHidden() {
+  return !chatPanel ||
+    chatPanel.style.display === "none" ||
+    chatPanel.classList.contains("chat-panel--hidden");
+}
+
+function showChatNotification(fromName, textOrLabel) {
+  if (!chatNotification) return;
+  const t = translations[currentLanguage] || translations.en;
+  chatNotification.textContent =
+    `${t.newMessageFrom || "New message from"} ${fromName}: ${textOrLabel}`;
+  chatNotification.classList.remove("hidden");
+  if (chatToggleBtn) chatToggleBtn.classList.add("has-unread");
+  if (chatNotificationTimeout) clearTimeout(chatNotificationTimeout);
+  chatNotificationTimeout = setTimeout(() => {
+    chatNotification.classList.add("hidden");
+  }, 4000);
+}
+
+function addChatMessageToUI(msg, scope) {
+  if (!chatMessages) return;
+  const fromId = msg.fromId || "unknown";
+  const fromName = msg.fromName || participantNames[fromId] || fromId;
+  const toId = msg.toId || null;
+  const t = translations[currentLanguage] || translations.en;
+
+  let meta = "";
+  if (scope === "public") {
+    meta = `${fromName} → ${t.everyone || "Everyone"}`;
+  } else {
+    // private
+    if (fromId === clientId && toId) {
+      const toName = participantNames[toId] || toId;
+      meta = `You → ${toName} (private)`;
+    } else if (toId === clientId) {
+      meta = `${fromName} → You (private)`;
+    } else {
+      meta = `${fromName} (private)`;
+    }
+  }
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-message";
+  const metaEl = document.createElement("div");
+  metaEl.className = "chat-message-meta";
+  metaEl.textContent = meta;
   const textEl = document.createElement("div");
   textEl.className = "chat-message-text";
 
@@ -231,23 +621,423 @@ function addChatMessageToUI(msg, scope, msgId) {
     img.src = msg.imageData;
     img.alt = "image";
     textEl.appendChild(img);
+    if (msg.text) {
+      const caption = document.createElement("div");
+      caption.textContent = msg.text;
+      textEl.appendChild(caption);
+    }
+  } else {
+    textEl.textContent = msg.text || "";
   }
-
-  if (msg.text) textEl.appendChild(document.createTextNode(msg.text));
 
   wrapper.appendChild(metaEl);
   wrapper.appendChild(textEl);
-
+  chatMessages.appendChild(wrapper);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
-  // notification if closed
+  // Show popup notification if panel is hidden and message is from someone else
   if (chatPanelIsHidden() && fromId !== clientId) {
-    showChatNotification(fromName, msg.text || t.imageMessage);
+    const label = msg.imageData
+      ? (t.imageMessage || "[image]")
+      : (msg.text || "");
+    showChatNotification(fromName, label);
   }
 }
 
-// EVERYTHING ELSE BELOW REMAINS THE SAME —
-// Room logic, WebRTC, joining, chat sending,
-// emoji picker, drag & drop, events, etc.
+function clearChatUI() {
+  if (chatMessages) chatMessages.innerHTML = "";
+  if (chatTargetSelect) {
+    chatTargetSelect.innerHTML = "";
+  }
+}
+
+// start listeners for current room
+function startChatListeners() {
+  if (chatListenersStarted || !roomRef || !clientId) return;
+  chatListenersStarted = true;
+  const chatRoot = roomRef.child("chat");
+  // PUBLIC
+  const publicRef = chatRoot.child("public");
+  publicRef.on("child_added", (snap) => {
+    const msg = snap.val();
+    if (!msg) return;
+    addChatMessageToUI(msg, "public");
+  });
+  // PRIVATE (single feed, filter for this client)
+  const privateRef = chatRoot.child("private");
+  privateRef.on("child_added", (snap) => {
+    const msg = snap.val();
+    if (!msg) return;
+    const { fromId, toId } = msg;
+    if (!fromId || !toId) return;
+    if (fromId === clientId || toId === clientId) {
+      addChatMessageToUI(msg, "private");
+    }
+  });
+  console.log("[Chat] listeners attached for room", roomId);
+}
+
+function stopChatListeners() {
+  if (!roomRef) return;
+  roomRef.child("chat").off();
+  chatListenersStarted = false;
+}
+
+function sendTextOrImageMessage(text, imagePayload) {
+  if (!roomRef || !clientId || !displayName) {
+    alert("You must be in a room to chat.");
+    return;
+  }
+  const chatRoot = roomRef.child("chat");
+  const target = chatTargetSelect ? chatTargetSelect.value : CHAT_TARGET_PUBLIC;
+  const ts = Date.now();
+
+  const baseMsg = {
+    fromId: clientId,
+    fromName: displayName,
+    ts
+  };
+
+  if (imagePayload) {
+    baseMsg.imageData = imagePayload.dataUrl;
+    baseMsg.imageType = imagePayload.type;
+  }
+  if (text && text.trim()) {
+    baseMsg.text = text.trim();
+  }
+
+  if (target === CHAT_TARGET_PUBLIC) {
+    chatRoot.child("public").push(baseMsg);
+  } else {
+    baseMsg.toId = target;
+    chatRoot.child("private").push(baseMsg);
+  }
+}
+
+function sendChatMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  sendTextOrImageMessage(text, null);
+  chatInput.value = "";
+}
+
+function handleFilesForChat(files) {
+  if (!files || !files.length) return;
+  const file = files[0];
+  if (!file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    sendTextOrImageMessage("", { dataUrl, type: file.type });
+  };
+  reader.readAsDataURL(file);
+}
+
 // -----------------------------
+//  INIT ROOM
 // -----------------------------
+function initRoomInfra() {
+  if (!roomRef) return;
+  participantsRef = roomRef.child("participants");
+  myParticipantRef = participantsRef.push();
+  clientId = myParticipantRef.key;
+  myParticipantRef.set({
+    name: displayName || clientId,
+    lang: userSelectedLanguage,
+    joinedAt: Date.now()
+  });
+  myParticipantRef.onDisconnect().remove();
+  participantsRef.on("child_added", snap => {
+    const pid = snap.key;
+    const pdata = snap.val() || {};
+    addParticipantToUI(pid, pdata);
+    if (pid !== clientId && clientId > pid) connectToPeer(pid);
+  });
+  participantsRef.on("child_removed", snap => {
+    const pid = snap.key;
+    removeParticipantFromUI(pid);
+    cleanupPeer(pid);
+  });
+  roomRef.child("signals").child(clientId).on("child_added", snap => {
+    setupSignalHandlersForPeer(snap.key, snap.ref);
+  });
+  startRoomEmptyWatcher();
+  startChatListeners();
+}
+
+// -----------------------------
+//  SHOW/HIDE CHAT UI BY CALL STATE
+// -----------------------------
+function showChatUI() {
+  if (chatPanel) {
+    chatPanel.style.display = "flex";
+    chatPanel.classList.add("chat-panel--hidden");
+    chatPanel.classList.remove("chat-panel--open");
+  }
+  if (chatToggleBtn) {
+    chatToggleBtn.style.display = "flex";
+  }
+}
+
+function hideChatUI() {
+  if (chatPanel) {
+    chatPanel.style.display = "none";
+    chatPanel.classList.add("chat-panel--hidden");
+    chatPanel.classList.remove("chat-panel--open");
+  }
+  if (chatToggleBtn) {
+    chatToggleBtn.style.display = "none";
+    chatToggleBtn.classList.remove("open");
+    chatToggleBtn.classList.remove("has-unread");
+  }
+  if (chatNotification) chatNotification.classList.add("hidden");
+  clearChatUI();
+}
+
+// -----------------------------
+//  CREATE ROOM
+// -----------------------------
+async function createRoom() {
+  const name = displayNameInput ? displayNameInput.value.trim() : "";
+  if (!name) {
+    alert("Please enter your name first.");
+    return;
+  }
+  displayName = name;
+  roomId = generateRoomId();
+  roomRef = database.ref(`rooms/${roomId}`);
+  await roomRef.set({ createdAt: Date.now() });
+  await startLocalMedia();
+  initRoomInfra();
+  if (joinModal) joinModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.remove("hidden");
+  updateJoinCodeBadge();
+  showRoomInfoModal();
+  history.replaceState(null, "", `?room=${roomId}`);
+  setStatus("statusCreated");
+  showChatUI();
+}
+
+// -----------------------------
+//  JOIN ROOM
+// -----------------------------
+async function joinRoomById(id) {
+  const name = displayNameInput ? displayNameInput.value.trim() : "";
+  if (!name) {
+    alert("Please enter your name first.");
+    return;
+  }
+  displayName = name;
+  const snap = await database.ref(`rooms/${id}`).once("value");
+  if (!snap.exists()) {
+    alert("Room does not exist.");
+    return;
+  }
+  roomId = id;
+  roomRef = database.ref(`rooms/${roomId}`);
+  await startLocalMedia();
+  initRoomInfra();
+  if (joinModal) joinModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.remove("hidden");
+  updateJoinCodeBadge();
+  history.replaceState(null, "", `?room=${roomId}`);
+  setStatus("statusJoined");
+  showChatUI();
+}
+
+// -----------------------------
+//  END CALL
+// -----------------------------
+async function endCall() {
+  console.log("[Call] Ending call");
+  Object.keys(peers).forEach(pid => cleanupPeer(pid));
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  clearVideos();
+  if (myParticipantRef) {
+    try {
+      await myParticipantRef.remove();
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  stopChatListeners();
+  hideChatUI();
+  if (roomRef) {
+    roomRef.off();
+  }
+  // reset participantNames
+  Object.keys(participantNames).forEach(k => delete participantNames[k]);
+  roomRef = null;
+  roomId = null;
+  clientId = null;
+  participantsRef = null;
+  myParticipantRef = null;
+  updateJoinCodeBadge();
+  if (joinModal) joinModal.style.display = "flex";
+  if (roomInfoModal) roomInfoModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.add("hidden");
+  // Reset URL back to base path (no room)
+  history.replaceState(null, "", window.location.pathname);
+  setStatus("statusIdle");
+}
+
+// -----------------------------
+//  EVENTS
+// -----------------------------
+if (startCallBtn) {
+  startCallBtn.onclick = createRoom;
+}
+
+if (joinCallBtn) {
+  joinCallBtn.onclick = () => {
+    const id = roomIdInput ? roomIdInput.value.trim() : "";
+    if (!id) {
+      alert("Enter a Room ID.");
+      return;
+    }
+    joinRoomById(id);
+  };
+}
+
+if (endCallBtn) {
+  endCallBtn.onclick = endCall;
+}
+
+if (copyIdBtn) {
+  copyIdBtn.onclick = () => {
+    if (!roomId) return;
+    navigator.clipboard.writeText(roomId);
+    const old = copyIdBtn.textContent;
+    copyIdBtn.textContent = "Copied!";
+    setTimeout(() => (copyIdBtn.textContent = old), 2000);
+  };
+}
+
+if (copyLinkBtn) {
+  copyLinkBtn.onclick = () => {
+    if (!roomId) return;
+    const url = `${location.origin}${location.pathname}?room=${roomId}`;
+    navigator.clipboard.writeText(url);
+    const old = copyLinkBtn.textContent;
+    copyLinkBtn.textContent = "Link Copied!";
+    setTimeout(() => (copyLinkBtn.textContent = old), 2000);
+  };
+}
+
+if (closeRoomInfoBtn) {
+  closeRoomInfoBtn.onclick = () => {
+    if (roomInfoModal) roomInfoModal.style.display = "none";
+  };
+}
+
+// Mute
+if (muteBtn) {
+  muteBtn.onclick = () => {
+    if (!localStream) return;
+    const track = localStream.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    const t = translations[currentLanguage] || translations.en;
+    muteBtn.innerHTML = track.enabled
+      ? `<i class="fas fa-microphone"></i><span>${t.mute}</span>`
+      : `<i class="fas fa-microphone-slash"></i><span>${t.unmute}</span>`;
+  };
+}
+
+// Video
+if (videoBtn) {
+  videoBtn.onclick = () => {
+    if (!localStream) return;
+    const track = localStream.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    const t = translations[currentLanguage] || translations.en;
+    videoBtn.innerHTML = track.enabled
+      ? `<i class="fas fa-video"></i><span>${t.stopVideo}</span>`
+      : `<i class="fas fa-video-slash"></i><span>${t.startVideo}</span>`;
+  };
+}
+
+// Chat UI events
+if (chatToggleBtn && chatPanel) {
+  chatToggleBtn.addEventListener("click", () => {
+    const open = chatPanel.classList.contains("chat-panel--open");
+    if (open) {
+      chatPanel.classList.remove("chat-panel--open");
+      chatPanel.classList.add("chat-panel--hidden");
+      chatToggleBtn.classList.remove("open");
+    } else {
+      chatPanel.classList.remove("chat-panel--hidden");
+      chatPanel.classList.add("chat-panel--open");
+      chatToggleBtn.classList.add("open");
+      chatToggleBtn.classList.remove("has-unread");
+      if (chatNotification) chatNotification.classList.add("hidden");
+    }
+  });
+}
+
+if (chatCloseBtn && chatPanel) {
+  chatCloseBtn.addEventListener("click", () => {
+    chatPanel.classList.remove("chat-panel--open");
+    chatPanel.classList.add("chat-panel--hidden");
+  });
+}
+
+if (chatSendBtn && chatInput) {
+  chatSendBtn.addEventListener("click", sendChatMessage);
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+}
+
+// Drag and drop images into chat
+document.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (!roomRef) return;
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length) handleFilesForChat(files);
+});
+
+// Paste images (screenshots, etc.) into chat
+document.addEventListener("paste", (e) => {
+  if (!roomRef) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  const files = [];
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind === "file") {
+      const f = items[i].getAsFile();
+      if (f) files.push(f);
+    }
+  }
+  if (files.length) handleFilesForChat(files);
+});
+
+// -----------------------------
+//  AUTO-JOIN PRE-FILL FROM URL
+// -----------------------------
+window.addEventListener("load", () => {
+  const params = new URLSearchParams(window.location.search);
+  const urlRoom = params.get("room");
+  if (urlRoom && roomIdInput) {
+    roomIdInput.value = urlRoom;
+  }
+  // joinModal stays open: user must still enter name + click
+});
+
+// Cleanup on tab close
+window.addEventListener("beforeunload", () => {
+  try {
+    if (myParticipantRef) myParticipantRef.remove();
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+  } catch {}
+});
