@@ -7,22 +7,18 @@ body, html {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background-color: #202124;
     color: #dadce0;
-    overflow: hidden; /* avoid scroll jump on mobile */
 }
-
 .container {
     display: flex;
     height: 100vh;
     width: 100%;
 }
-
 .main {
     flex: 1;
     display: flex;
     flex-direction: column;
     position: relative;
 }
-
 /* Video area */
 .main__videos {
     flex-grow: 1;
@@ -31,21 +27,20 @@ body, html {
     align-items: center;
     position: relative;
     background-color: #202124;
-    overflow: hidden;
+    overflow: hidden; /* Prevent scroll */
 }
-
 #video-grid {
     width: 100%;
     height: 100%;
     position: relative;
+    /* multi‑peer friendly */
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-content: center;
     gap: 10px;
 }
-
-/* Generic remote video style (desktop / multi-person layout) */
+/* Generic remote video style (multi‑person layout) */
 .remote-video {
     flex: 1 1 calc(50% - 20px);
     max-width: calc(50% - 20px);
@@ -56,8 +51,7 @@ body, html {
     background: black;
     border-radius: 6px;
 }
-
-/* When exactly ONE remote is in the call -> fullscreen (desktop) */
+/* When exactly ONE remote is in the call -> fullscreen */
 .remote-video.fullscreen-remote {
     position: absolute;
     inset: 0;
@@ -67,10 +61,9 @@ body, html {
     max-height: 100%;
     flex: none;
     border-radius: 0;
-    object-fit: contain;
+    object-fit: contain; /* or cover if you want it to crop */
     z-index: 1;
 }
-
 /* Local video (small preview) */
 .local-video {
     position: absolute;
@@ -84,7 +77,6 @@ body, html {
     background: black;
     object-fit: cover;
 }
-
 /* Controls bar */
 .main__controls {
     display: flex;
@@ -95,14 +87,12 @@ body, html {
     align-items: center;
     gap: 20px;
     border-top: 1px solid #3c4043;
-    height: 80px;
+    height: 80px; /* Fixed height */
 }
-
 .main__controls__block {
     display: flex;
     gap: 10px;
 }
-
 .main__controls__button {
     display: flex;
     flex-direction: column;
@@ -116,16 +106,13 @@ body, html {
     cursor: pointer;
     font-size: 14px;
 }
-
 .main__controls__button:hover {
     background-color: #5f6368;
 }
-
 .main__controls__button i {
     font-size: 24px;
     margin-bottom: 5px;
 }
-
 /* End Call button */
 .end-call-button {
     background-color: #ea4335;
@@ -133,11 +120,9 @@ body, html {
 .end-call-button:hover {
     background-color: #d33b2c;
 }
-
 .hidden {
     display: none;
 }
-
 /* Modals */
 .modal {
     display: flex;
@@ -151,7 +136,6 @@ body, html {
     height: 100%;
     background-color: rgba(0,0,0,0.6);
 }
-
 .modal-content {
     background-color: #3c4043;
     color: #dadce0;
@@ -161,9 +145,8 @@ body, html {
     max-width: 400px;
     text-align: center;
 }
-
-#display-name-input,
-#room-id-input {
+#room-id-input,
+#display-name-input {
     width: 100%;
     padding: 10px;
     margin: 10px 0;
@@ -173,13 +156,11 @@ body, html {
     color: #dadce0;
     border-radius: 5px;
 }
-
 .modal-buttons {
     display: flex;
     gap: 10px;
     margin-top: 20px;
 }
-
 .modal-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -190,11 +171,9 @@ body, html {
     cursor: pointer;
     font-size: 16px;
 }
-
 .modal-buttons button:hover {
     background-color: #155ab6;
 }
-
 /* Room Info Modal */
 .room-info-content {
     background-color: #3c4043;
@@ -205,7 +184,6 @@ body, html {
     max-width: 500px;
     text-align: center;
 }
-
 .room-id-display {
     background-color: #202124;
     border: 2px dashed #5f6368;
@@ -217,13 +195,11 @@ body, html {
     letter-spacing: 4px;
     word-wrap: break-word;
 }
-
 .copy-buttons {
     display: flex;
     gap: 15px;
     margin: 20px 0;
 }
-
 .copy-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -235,14 +211,12 @@ body, html {
     font-size: 16px;
     transition: background-color 0.2s;
 }
-
 .copy-buttons button:hover {
     background-color: #155ab6;
 }
 .copy-buttons button:active {
     background-color: #0d47a1;
 }
-
 #close-room-info-btn {
     background-color: #5f6368;
     color: #dadce0;
@@ -256,15 +230,14 @@ body, html {
 #close-room-info-btn:hover {
     background-color: #3c4043;
 }
-
-/* Join code bubble – bottom-left */
+/* Join code bubble – bottom‑left, solid light blue "bubble letters" vibe */
 #join-code-badge {
     position: fixed;
     left: 10px;
     bottom: 10px;
     padding: 8px 16px;
     border-radius: 999px;
-    background-color: #8ab4f8;
+    background-color: #8ab4f8; /* solid light blue */
     color: #202124;
     font-weight: 800;
     font-size: 18px;
@@ -274,235 +247,210 @@ body, html {
     box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     z-index: 150;
 }
-
-/* -----------------------------
-   Chat UI
-------------------------------*/
-
-/* Chat toggle button (floating) */
+/* ===========================
+   Slide-out Chat Panel
+   =========================== */
 .chat-toggle-btn {
     position: fixed;
-    right: 15px;
-    bottom: 100px;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #3c4043;
     border: none;
-    background-color: #1a73e8;
-    color: white;
+    color: #dadce0;
+    padding: 10px 12px;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    z-index: 140;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-    cursor: pointer;
-    z-index: 180;
 }
-
 .chat-toggle-btn i {
-    font-size: 22px;
+    font-size: 20px;
 }
-
-/* Slide-out panel on the right (desktop) */
 .chat-panel {
     position: fixed;
     top: 0;
     right: 0;
     width: 320px;
-    height: 100%;
-    background-color: #2b2f33;
+    height: 100vh;
+    background-color: #171717;
     border-left: 1px solid #3c4043;
     display: flex;
     flex-direction: column;
-    z-index: 170;
+    transform: translateX(100%);
     transition: transform 0.25s ease-out;
+    z-index: 130;
 }
-
-/* Start hidden off-screen */
 .chat-panel--hidden {
     transform: translateX(100%);
 }
-
-/* When open, slide into view */
 .chat-panel--open {
-    transform: translateX(0%);
+    transform: translateX(0);
 }
-
 .chat-panel__header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    padding: 12px 12px;
+    align-items: center;
+    padding: 10px 12px;
     border-bottom: 1px solid #3c4043;
+    background-color: #202124;
+}
+.chat-panel__header span {
     font-weight: 600;
 }
-
 .chat-header-button {
     background: none;
     border: none;
     color: #dadce0;
     cursor: pointer;
 }
-
 .chat-panel__target {
     display: flex;
     align-items: center;
+    gap: 6px;
     padding: 8px 12px;
-    gap: 8px;
     border-bottom: 1px solid #3c4043;
-    font-size: 13px;
 }
-
 .chat-panel__target label {
-    white-space: nowrap;
+    font-size: 12px;
+    color: #9aa0a6;
 }
-
 #chat-target-select {
     flex: 1;
+    padding: 6px 8px;
     background-color: #202124;
     border: 1px solid #5f6368;
-    color: #dadce0;
     border-radius: 4px;
-    padding: 4px 6px;
+    color: #dadce0;
     font-size: 13px;
 }
-
-/* Messages area */
 .chat-panel__messages {
     flex: 1;
-    padding: 10px;
     overflow-y: auto;
+    padding: 8px 12px;
     font-size: 13px;
 }
-
 .chat-message {
     margin-bottom: 8px;
 }
-
 .chat-message-meta {
     font-size: 11px;
     color: #9aa0a6;
 }
-
 .chat-message-text {
     background-color: #3c4043;
-    padding: 6px 8px;
     border-radius: 6px;
+    padding: 5px 8px;
     margin-top: 2px;
     word-wrap: break-word;
 }
-
-/* Chat input area */
 .chat-panel__input {
     display: flex;
-    padding: 8px;
+    padding: 8px 10px;
     border-top: 1px solid #3c4043;
-    gap: 6px;
+    background-color: #202124;
 }
-
 #chat-input {
     flex: 1;
-    background-color: #202124;
+    padding: 8px;
+    background-color: #171717;
+    border-radius: 4px;
     border: 1px solid #5f6368;
     color: #dadce0;
-    border-radius: 6px;
-    padding: 8px;
     font-size: 13px;
 }
-
 #chat-send-btn {
-    width: 38px;
-    border-radius: 50%;
-    border: none;
+    margin-left: 8px;
     background-color: #1a73e8;
-    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
 }
-
 #chat-send-btn i {
-    font-size: 16px;
+    color: #fff;
+}
+#chat-send-btn:hover {
+    background-color: #155ab6;
 }
 
-/* -----------------------------
-   Mobile tweaks
-------------------------------*/
+/* ===========================
+   MOBILE IMPROVEMENTS
+   =========================== */
 
 @media (max-width: 768px) {
+    /* Video layout: stack better on narrow screens */
+    #video-grid {
+        flex-wrap: wrap;
+        align-content: flex-start;
+    }
 
-    .container {
-        height: 100vh;
-        width: 100vw;
+    .remote-video {
+        flex: 1 1 100%;
+        max-width: 100%;
+        max-height: 50%;
+        border-radius: 4px;
+    }
+
+    .remote-video.fullscreen-remote {
+        object-fit: cover; /* looks nicer full-screen on phones */
+    }
+
+    .local-video {
+        width: 140px !important;
+        height: 100px !important;
+        bottom: 15px;
+        right: 15px;
+        border-width: 1px;
     }
 
     .main__controls {
         height: 70px;
+        padding: 6px;
         gap: 10px;
     }
-
     .main__controls__button {
-        padding: 8px 10px;
+        padding: 6px 10px;
         font-size: 12px;
     }
-
     .main__controls__button i {
         font-size: 20px;
-        margin-bottom: 3px;
     }
 
-    /* Make remote video effectively fullscreen on phones */
-    .remote-video {
-        position: absolute;
-        inset: 0;
-        width: 100% !important;
-        height: 100% !important;
-        max-width: 100% !important;
-        max-height: 100% !important;
-        flex: none !important;
-        object-fit: cover;
-        border-radius: 0 !important;
-    }
-
-    .remote-video.fullscreen-remote {
-        /* same as remote-video above, just keep full coverage */
-        position: absolute;
-        inset: 0;
-        width: 100% !important;
-        height: 100% !important;
-        object-fit: cover;
-        border-radius: 0 !important;
-        flex: none !important;
-    }
-
-    /* Local video: smaller corner preview */
-    .local-video {
-        width: 140px !important;
-        height: 100px !important;
-        bottom: 15px !important;
-        right: 15px !important;
-    }
-
-    /* Join modal big inputs */
     .modal-content {
         width: 90%;
-        max-width: 420px;
-        padding: 24px;
+        padding: 20px;
     }
 
-    #display-name-input,
-    #room-id-input {
+    #room-id-input,
+    #display-name-input {
         font-size: 16px;
         padding: 12px;
     }
 
-    /* Chat panel as narrower drawer */
+    /* Chat panel becomes narrower, more phone-friendly */
     .chat-panel {
         width: 80vw;
     }
 
-    /* Chat toggle slightly higher */
     .chat-toggle-btn {
-        bottom: 90px;
+        top: auto;
+        bottom: 100px;
+        transform: none;
+    }
+
+    .chat-panel__messages {
+        font-size: 12px;
+    }
+
+    #join-code-badge {
+        font-size: 14px;
+        padding: 6px 12px;
+        letter-spacing: 2px;
     }
 }
