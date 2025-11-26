@@ -1,106 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Free Video Call</title>
-
-<!-- FontAwesome -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-<!-- Main CSS -->
-<link rel="stylesheet" href="style.css" />
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Video Call</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
-
-<!-- JOIN MODAL -->
-<div id="join-modal" class="modal">
-  <div class="modal-content">
-    <h2>Join or Create Room</h2>
-
-    <div class="input-row">
-      <input id="room-id-input" type="text" placeholder="Enter Room Code" />
+    <div class="container">
+        <div class="main">
+            <div class="main__videos">
+                <div id="video-grid">
+                    <!-- Local + remote videos get added here -->
+                </div>
+            </div>
+            <div class="main__controls">
+                <div class="main__controls__block">
+                    <button id="mute-btn" class="main__controls__button main__mute_button">
+                        <i class="fas fa-microphone"></i>
+                        <span>Mute</span>
+                    </button>
+                    <button id="video-btn" class="main__controls__button main__video_button">
+                        <i class="fas fa-video"></i>
+                        <span>Stop Video</span>
+                    </button>
+                    <button id="end-call-btn" class="main__controls__button end-call-button hidden">
+                        <i class="fas fa-phone-slash"></i>
+                        <span>End Call</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="button-row">
-      <button id="start-call-btn" class="action-btn create-btn">
-        <i class="fas fa-plus"></i> Create Room
-      </button>
-
-      <button id="join-call-btn" class="action-btn join-btn">
-        <i class="fas fa-sign-in-alt"></i> Join Room
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ROOM INFO MODAL -->
-<div id="room-info-modal" class="modal small-modal">
-  <div class="modal-content small-content">
-    <h3>Room Code</h3>
-    <p id="room-id-display" class="room-display">------</p>
-
-    <div class="button-row">
-      <button id="copy-id-btn" class="action-btn small-btn">
-        <i class="fas fa-copy"></i> Copy Code
-      </button>
-      <button id="copy-link-btn" class="action-btn small-btn">
-        <i class="fas fa-link"></i> Copy Link
-      </button>
+    <!-- Join / Start Call Modal -->
+    <div id="join-modal" class="modal">
+        <div class="modal-content">
+            <h2>Join or Start a Call</h2>
+            <input type="text" id="room-id-input" placeholder="Enter Room ID to join">
+            <div class="modal-buttons">
+                <button id="join-call-btn">Join Call</button>
+                <button id="start-call-btn">Start New Call</button>
+            </div>
+        </div>
     </div>
 
-    <button id="close-room-info-btn" class="close-info-btn">
-      Close
-    </button>
-  </div>
-</div>
+    <!-- Room Info Modal (shows after starting a call) -->
+    <div id="room-info-modal" class="modal" style="display: none;">
+        <div class="room-info-content">
+            <h2>Your Call is Ready!</h2>
+            <p>Share this ID or link with others to join your call.</p>
+            <div class="room-id-display" id="room-id-display"></div>
+            <div class="copy-buttons">
+                <button id="copy-id-btn">Copy ID</button>
+                <button id="copy-link-btn">Copy Link</button>
+            </div>
+            <button id="close-room-info-btn">Close</button>
+        </div>
+    </div>
 
-<!-- JOIN CODE BADGE (bottom-left) -->
-<div id="join-code-badge">CODE: ----</div>
+    <!-- Firebase SDK (compat version, works with firebase.initializeApp) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
-<!-- STATUS LABEL -->
-<div id="status-label">Status: idle</div>
-
-<!-- VIDEO GRID -->
-<div id="video-grid"></div>
-
-<!-- CONTROLS -->
-<div id="controls">
-  <button id="mute-btn" class="control-btn">
-    <i class="fas fa-microphone"></i><span>Mute</span>
-  </button>
-
-  <button id="video-btn" class="control-btn">
-    <i class="fas fa-video"></i><span>Stop Video</span>
-  </button>
-
-  <button id="end-call-btn" class="control-btn end hidden">
-    <i class="fas fa-phone-slash"></i><span>End</span>
-  </button>
-</div>
-
-<!-- CHAT (optional but supported) -->
-<div id="chat-panel">
-  <div id="chat-messages"></div>
-  <div class="chat-input-row">
-    <input id="chat-input" type="text" placeholder="Message..." />
-    <button id="chat-send-btn">Send</button>
-  </div>
-</div>
-
-<!-- PARTICIPANTS LIST -->
-<ul id="participants-list"></ul>
-
-<!-- SUBTITLES -->
-<div id="subtitles-container"></div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-<!-- Main JS -->
-<script src="script.js"></script>
-
+    <!-- Your app logic -->
+    <script src="script.js"></script>
 </body>
 </html>
