@@ -8,20 +8,17 @@ body, html {
     background-color: #202124;
     color: #dadce0;
 }
-
 .container {
     display: flex;
     height: 100vh;
     width: 100%;
 }
-
 .main {
     flex: 1;
     display: flex;
     flex-direction: column;
     position: relative;
 }
-
 /* Video area */
 .main__videos {
     flex-grow: 1;
@@ -32,12 +29,10 @@ body, html {
     background-color: #202124;
     overflow: hidden; /* Prevent scroll */
 }
-
 #video-grid {
     width: 100%;
     height: 100%;
     position: relative;
-
     /* multi‑peer friendly */
     display: flex;
     flex-wrap: wrap;
@@ -45,7 +40,6 @@ body, html {
     align-content: center;
     gap: 10px;
 }
-
 /* Generic remote video style (multi‑person layout) */
 .remote-video {
     flex: 1 1 calc(50% - 20px);
@@ -57,7 +51,6 @@ body, html {
     background: black;
     border-radius: 6px;
 }
-
 /* When exactly ONE remote is in the call -> fullscreen */
 .remote-video.fullscreen-remote {
     position: absolute;
@@ -68,10 +61,9 @@ body, html {
     max-height: 100%;
     flex: none;
     border-radius: 0;
-    object-fit: contain; /* or cover if you want it to crop */
+    object-fit: contain;
     z-index: 1;
 }
-
 /* Local video (small preview) */
 .local-video {
     position: absolute;
@@ -85,7 +77,6 @@ body, html {
     background: black;
     object-fit: cover;
 }
-
 /* Controls bar */
 .main__controls {
     display: flex;
@@ -98,12 +89,10 @@ body, html {
     border-top: 1px solid #3c4043;
     height: 80px; /* Fixed height */
 }
-
 .main__controls__block {
     display: flex;
     gap: 10px;
 }
-
 .main__controls__button {
     display: flex;
     flex-direction: column;
@@ -117,29 +106,23 @@ body, html {
     cursor: pointer;
     font-size: 14px;
 }
-
 .main__controls__button:hover {
     background-color: #5f6368;
 }
-
 .main__controls__button i {
     font-size: 24px;
     margin-bottom: 5px;
 }
-
 /* End Call button */
 .end-call-button {
     background-color: #ea4335;
 }
-
 .end-call-button:hover {
     background-color: #d33b2c;
 }
-
 .hidden {
     display: none;
 }
-
 /* Modals */
 .modal {
     display: flex;
@@ -153,7 +136,6 @@ body, html {
     height: 100%;
     background-color: rgba(0,0,0,0.6);
 }
-
 .modal-content {
     background-color: #3c4043;
     color: #dadce0;
@@ -163,24 +145,22 @@ body, html {
     max-width: 400px;
     text-align: center;
 }
-
+#display-name-input,
 #room-id-input {
     width: 100%;
     padding: 10px;
-    margin: 20px 0;
+    margin: 10px 0;
     box-sizing: border-box;
     border: 1px solid #5f6368;
     background-color: #202124;
     color: #dadce0;
     border-radius: 5px;
 }
-
 .modal-buttons {
     display: flex;
     gap: 10px;
     margin-top: 20px;
 }
-
 .modal-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -191,11 +171,9 @@ body, html {
     cursor: pointer;
     font-size: 16px;
 }
-
 .modal-buttons button:hover {
     background-color: #155ab6;
 }
-
 /* Room Info Modal */
 .room-info-content {
     background-color: #3c4043;
@@ -206,7 +184,6 @@ body, html {
     max-width: 500px;
     text-align: center;
 }
-
 .room-id-display {
     background-color: #202124;
     border: 2px dashed #5f6368;
@@ -218,13 +195,11 @@ body, html {
     letter-spacing: 4px;
     word-wrap: break-word;
 }
-
 .copy-buttons {
     display: flex;
     gap: 15px;
     margin: 20px 0;
 }
-
 .copy-buttons button {
     flex-grow: 1;
     background-color: #1a73e8;
@@ -236,15 +211,12 @@ body, html {
     font-size: 16px;
     transition: background-color 0.2s;
 }
-
 .copy-buttons button:hover {
     background-color: #155ab6;
 }
-
 .copy-buttons button:active {
     background-color: #0d47a1;
 }
-
 #close-room-info-btn {
     background-color: #5f6368;
     color: #dadce0;
@@ -255,25 +227,167 @@ body, html {
     font-size: 14px;
     margin-top: 10px;
 }
-
 #close-room-info-btn:hover {
     background-color: #3c4043;
 }
-
-/* Join code bubble – bottom‑left, solid light blue "bubble letters" vibe */
+/* Join code bubble */
 #join-code-badge {
     position: fixed;
     left: 10px;
     bottom: 10px;
     padding: 8px 16px;
     border-radius: 999px;
-    background-color: #8ab4f8; /* solid light blue */
+    background-color: #8ab4f8;
     color: #202124;
     font-weight: 800;
     font-size: 18px;
     letter-spacing: 3px;
-    text-transform: uppercase;
-    font-family: 'Trebuchet MS', 'Comic Sans MS', system-ui, sans-serif;
+    /* removed text-transform so case is accurate */
+    font-family: 'Trebuchet MS', system-ui, sans-serif;
     box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     z-index: 150;
+}
+
+/* -------- Chat panel (slide‑out on right) -------- */
+.chat-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 320px;
+    max-width: 80vw;
+    height: 100vh;
+    background-color: #303134;
+    border-left: 1px solid #3c4043;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.4);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 120;
+}
+.chat-panel.open {
+    transform: translateX(0);
+}
+.chat-toggle {
+    position: absolute;
+    left: -32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 64px;
+    background-color: #303134;
+    border-radius: 8px 0 0 8px;
+    border: 1px solid #3c4043;
+    border-right: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.chat-toggle i {
+    color: #dadce0;
+}
+.chat-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.chat-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid #3c4043;
+    font-weight: 600;
+    font-size: 15px;
+}
+.chat-mode-row {
+    display: flex;
+    border-bottom: 1px solid #3c4043;
+}
+.chat-mode-btn {
+    flex: 1;
+    padding: 8px;
+    font-size: 13px;
+    border: none;
+    background: none;
+    color: #dadce0;
+    cursor: pointer;
+}
+.chat-mode-btn.active {
+    background-color: #1a73e8;
+    color: white;
+}
+.private-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #3c4043;
+    font-size: 12px;
+}
+.private-controls select {
+    flex: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #5f6368;
+    background-color: #202124;
+    color: #dadce0;
+}
+.private-controls.hidden {
+    display: none;
+}
+.participants-list {
+    max-height: 80px;
+    overflow-y: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #3c4043;
+}
+.participants-list li {
+    list-style: none;
+    padding: 2px 0;
+}
+.chat-messages {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 13px;
+}
+.chat-message {
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+.chat-message .meta {
+    font-size: 11px;
+    color: #9aa0a6;
+}
+.chat-message.private {
+    background-color: #202124;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+.chat-message.own {
+    text-align: right;
+}
+.chat-input-row {
+    display: flex;
+    padding: 8px 10px;
+    border-top: 1px solid #3c4043;
+    gap: 6px;
+}
+#chat-input {
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #5f6368;
+    background-color: #202124;
+    color: #dadce0;
+}
+#chat-send-btn {
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: none;
+    background-color: #1a73e8;
+    color: white;
+    cursor: pointer;
+    font-size: 13px;
+}
+#chat-send-btn:hover {
+    background-color: #155ab6;
 }
