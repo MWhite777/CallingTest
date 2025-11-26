@@ -36,11 +36,52 @@
         </div>
     </div>
 
+    <!-- Slide‑out Chat Panel -->
+    <div id="chat-panel" class="chat-panel collapsed">
+        <div id="chat-toggle" class="chat-toggle">
+            <i class="fas fa-chevron-left"></i>
+        </div>
+        <div class="chat-inner">
+            <div class="chat-header">
+                <span id="chat-header-title">Chat</span>
+            </div>
+
+            <div class="chat-mode-row">
+                <button id="chat-mode-public" class="chat-mode-btn active">Public</button>
+                <button id="chat-mode-private" class="chat-mode-btn">Private</button>
+            </div>
+
+            <!-- Private controls (recipient picker) -->
+            <div id="private-controls" class="private-controls hidden">
+                <label for="private-recipient">To:</label>
+                <select id="private-recipient">
+                    <option value="">Select user…</option>
+                </select>
+            </div>
+
+            <!-- Participants list (for awareness) -->
+            <div id="participants-list" class="participants-list"></div>
+
+            <div id="chat-messages" class="chat-messages"></div>
+
+            <div class="chat-input-row">
+                <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off">
+                <button id="chat-send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Join / Start Call Modal -->
     <div id="join-modal" class="modal">
         <div class="modal-content">
             <h2>Join or Start a Call</h2>
+
+            <!-- Display name (required) -->
+            <input type="text" id="display-name-input" placeholder="Enter your name">
+
+            <!-- Room ID (optional if starting new) -->
             <input type="text" id="room-id-input" placeholder="Enter Room ID to join">
+
             <div class="modal-buttons">
                 <button id="join-call-btn">Join Call</button>
                 <button id="start-call-btn">Start New Call</button>
@@ -65,7 +106,6 @@
     <!-- Firebase SDK (compat version, works with firebase.initializeApp) -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-
     <!-- Your app logic -->
     <script src="script.js"></script>
 </body>
