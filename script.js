@@ -1,6 +1,7 @@
 // -----------------------------
 //  Firebase Initialization
 // -----------------------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDl1rBlKbZezkdPHQovpXR_QZ_1v2w-sQg",
   authDomain: "my-calling-test.firebaseapp.com",
@@ -8,8 +9,8 @@ const firebaseConfig = {
   projectId: "my-calling-test",
   storageBucket: "my-calling-test.firebasestorage.app",
   messagingSenderId: "222289306242",
-  appId: "1:222289306242:web:e841cbc95876665d324a9b",
-  measurementId: "G-TW6X4N95L5"
+  appId: "1:222289306242:web:8963a4ea7ce852c2324a9b",
+  measurementId: "G-BC52VQ658F"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -32,10 +33,6 @@ const closeRoomInfoBtn = document.getElementById("close-room-info-btn");
 const muteBtn = document.getElementById("mute-btn");
 const videoBtn = document.getElementById("video-btn");
 const endCallBtn = document.getElementById("end-call-btn");
-
-// NEW: optional device selector buttons (add them in HTML if you want to use)
-const selectMicBtn = document.getElementById("select-mic-btn");
-const selectCamBtn = document.getElementById("select-cam-btn");
 
 // Optional chat / participants / language UI (won't crash if missing)
 const chatMessages = document.getElementById("chat-messages");
@@ -94,8 +91,12 @@ if (languageSelect) {
   });
 }
 
-// Auto-delete timer (no participants for 10 minutes)
-let inactivityTimer = null;
+// Device selection state
+let selectedAudioDeviceId = null;
+let selectedVideoDeviceId = null;
+
+// Room cleanup timeout (10 min idle delete)
+let roomCleanupTimeout = null;
 
 // -----------------------------
 //  ICE SERVERS (STUN + TURN)
@@ -120,7 +121,7 @@ function setStatus(text) {
 }
 
 function generateRoomId() {
-  return Math.random().toString(36).substring(2, 8); // lowercase code
+  return Math.random().toString(36).substring(2, 8);
 }
 
 function clearVideos() {
@@ -161,7 +162,7 @@ function createVideoElement(id, isLocal = false) {
 }
 
 function addLocalVideo(stream) {
-  if (!videoGrid) return;
+  if (!videoGrid || !stream) return;
   let video = document.getElementById("video-local");
   if (!video) {
     video = createVideoElement("video-local", true);
@@ -198,30 +199,83 @@ function showRoomInfoModal() {
   roomInfoModal.style.display = "flex";
 }
 
+function scheduleRoomCleanup(roomIdToClean) {
+  if (!roomIdToClean) return;
+  if (roomCleanupTimeout) clearTimeout(roomCleanupTimeout);
+
+  roomCleanupTimeout = setTimeout(async () => {
+    try {
+      const participantsSnap = await database
+        .ref(`rooms/${roomIdToClean}/participants`)
+        .once("value");
+
+      if (!participantsSnap.exists()) {
+        await database.ref(`rooms/${roomIdToClean}`).remove();
+        console.log("[Cleanup] Removed empty room after 10 min:", roomIdToClean);
+      } else {
+        console.log(
+          "[Cleanup] Room still has participants after 10 min, not removed:",
+          roomIdToClean
+        );
+      }
+    } catch (e) {
+      console.warn("[Cleanup] Error during room cleanup:", e);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
+}
+
 // -----------------------------
 //  MEDIA
 // -----------------------------
-// (kept for compatibility, but NOT auto-called on join/create anymore)
-async function startLocalMedia() {
-  if (localStream) return localStream;
+// NOTE: we no longer auto-call this on join/host.
+// Media is started only when user selects mic/cam.
+async function startLocalMedia(constraints) {
   try {
     setStatus("requesting media");
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true
-    });
-    console.log("[Media] Got local stream");
-    addLocalVideo(localStream);
-    // attach to existing peers if any
-    attachLocalTracksToAllPeers();
-    setStatus("media ready");
-    return localStream;
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log("[Media] Got local stream with tracks:", stream.getTracks().map(t => t.kind));
+    return stream;
   } catch (err) {
     console.error("[Media] Error accessing devices:", err);
     alert("Could not access camera/microphone.");
     setStatus("media error");
     throw err;
   }
+}
+
+// Sync localStream tracks to all peer connections & renegotiate
+function syncLocalTracksToPeers() {
+  if (!localStream) return;
+
+  Object.values(peers).forEach(({ pc }) => {
+    if (!pc) return;
+    const senders = pc.getSenders();
+    const tracks = localStream.getTracks();
+
+    ["audio", "video"].forEach(kind => {
+      const newTrack = tracks.find(t => t.kind === kind) || null;
+      const sender = senders.find(s => s.track && s.track.kind === kind);
+
+      if (sender && newTrack) {
+        if (sender.track !== newTrack) {
+          sender.replaceTrack(newTrack).catch(err => {
+            console.warn("[Tracks] replaceTrack error:", err);
+          });
+        }
+      } else if (!sender && newTrack) {
+        pc.addTrack(newTrack, localStream);
+      } else if (sender && !newTrack) {
+        sender.replaceTrack(null).catch(err => {
+          console.warn("[Tracks] remove track error:", err);
+        });
+      }
+    });
+  });
+
+  // Renegotiate with all peers (send updated offers)
+  Object.keys(peers).forEach(peerId => {
+    connectToPeer(peerId);
+  });
 }
 
 // -----------------------------
@@ -242,7 +296,7 @@ function createPeerConnectionForPeer(peerId) {
     videoEl: peers[peerId]?.videoEl || null
   };
 
-  // Add local tracks if we already have media
+  // If we already have localStream, attach tracks
   if (localStream) {
     localStream.getTracks().forEach((track) => {
       pc.addTrack(track, localStream);
@@ -282,7 +336,6 @@ function createPeerConnectionForPeer(peerId) {
   return pc;
 }
 
-// initial connect (first offer)
 async function connectToPeer(peerId) {
   try {
     console.log("[WebRTC] connectToPeer", peerId);
@@ -300,58 +353,15 @@ async function connectToPeer(peerId) {
   }
 }
 
-// renegotiate when we add new local tracks later
-async function renegotiateWithPeer(peerId) {
-  try {
-    const peer = peers[peerId];
-    if (!peer || !peer.pc || !roomRef || !clientId) return;
-    const pc = peer.pc;
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    const signalsRef = roomRef.child("signals").child(peerId).child(clientId);
-    await signalsRef.child("offer").set({
-      type: offer.type,
-      sdp: offer.sdp
-    });
-    console.log("[WebRTC] Renegotiation offer sent to", peerId);
-  } catch (err) {
-    console.error("[WebRTC] Error renegotiating with peer", peerId, err);
-  }
-}
-
-// Attach local tracks to all existing peers and renegotiate
-function attachLocalTracksToAllPeers() {
-  if (!localStream) return;
-
-  Object.keys(peers).forEach((pid) => {
-    const peer = peers[pid];
-    if (!peer || !peer.pc) return;
-    const pc = peer.pc;
-
-    const senders = pc.getSenders ? pc.getSenders() : [];
-    localStream.getTracks().forEach((track) => {
-      const already = senders.find(
-        (s) => s.track && s.track.kind === track.kind
-      );
-      if (!already) {
-        pc.addTrack(track, localStream);
-      }
-    });
-
-    // renegotiate so others start receiving the new track(s)
-    renegotiateWithPeer(pid);
-  });
-}
-
 // Handle incoming offers/answers/ICE for a given peer
 function setupSignalHandlersForPeer(fromId, fromRef) {
-  // Offer (we are callee)
+  // Offer (we are callee) - allow renegotiation (no guard)
   fromRef.child("offer").on("value", async (snap) => {
     const offer = snap.val();
     if (!offer) return;
     console.log("[Signal] Got offer from", fromId);
     const pc = createPeerConnectionForPeer(fromId);
-    if (!pc.currentRemoteDescription) {
+    try {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -361,17 +371,21 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
         sdp: answer.sdp
       });
       console.log("[Signal] Sent answer to", fromId);
+    } catch (e) {
+      console.warn("[Signal] Error handling offer from", fromId, e);
     }
   });
 
-  // Answer (we are caller)
+  // Answer (we are caller) - allow repeated answers
   fromRef.child("answer").on("value", async (snap) => {
     const answer = snap.val();
     if (!answer) return;
     console.log("[Signal] Got answer from", fromId);
     const pc = createPeerConnectionForPeer(fromId);
-    if (!pc.currentRemoteDescription || pc.currentRemoteDescription.type !== "answer") {
+    try {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    } catch (e) {
+      console.warn("[Signal] Error setting remote answer from", fromId, e);
     }
   });
 
@@ -511,40 +525,6 @@ if (chatSendBtn && chatInput) {
 }
 
 // -----------------------------
-//  ROOM INACTIVITY WATCHER
-//  (auto delete if no participants for 10 minutes)
-// -----------------------------
-function setupInactivityWatcher() {
-  if (!roomRef) return;
-  const participantsNode = roomRef.child("participants");
-
-  participantsNode.on("value", (snap) => {
-    const val = snap.val();
-    const hasParticipants = val && Object.keys(val).length > 0;
-
-    if (!hasParticipants) {
-      if (!inactivityTimer) {
-        console.log("[Room] No participants, scheduling auto-delete in 10 minutes");
-        inactivityTimer = setTimeout(async () => {
-          try {
-            await roomRef.remove();
-            console.log("[Room] Auto-deleted empty room:", roomId);
-          } catch (err) {
-            console.warn("[Room] Failed to auto-delete room:", err);
-          }
-        }, 10 * 60 * 1000); // 10 minutes
-      }
-    } else {
-      if (inactivityTimer) {
-        clearTimeout(inactivityTimer);
-        inactivityTimer = null;
-        console.log("[Room] Participants present, auto-delete timer cleared");
-      }
-    }
-  });
-}
-
-// -----------------------------
 //  ROOM PRESENCE + SIGNALING
 // -----------------------------
 function initRoomInfra() {
@@ -555,7 +535,6 @@ function initRoomInfra() {
   myParticipantRef = participantsRef.push();
   clientId = myParticipantRef.key;
   console.log("[Room] My clientId:", clientId);
-
   myParticipantRef.set({
     lang: userSelectedLanguage,
     joinedAt: Date.now()
@@ -570,7 +549,6 @@ function initRoomInfra() {
     if (pid === clientId) return;
     // Only one side should initiate connection -> use simple lexicographic rule
     if (clientId > pid) {
-      // We are "later" -> we initiate offer
       connectToPeer(pid);
     }
   });
@@ -593,9 +571,6 @@ function initRoomInfra() {
 
   // CHAT
   startChatListener();
-
-  // Auto-delete watcher
-  setupInactivityWatcher();
 }
 
 // -----------------------------
@@ -612,9 +587,6 @@ async function createRoom() {
       createdAt: Date.now()
     });
 
-    // IMPORTANT: do NOT auto-start media here (no permission required to create)
-    // await startLocalMedia();
-
     initRoomInfra();
 
     // UI
@@ -622,14 +594,16 @@ async function createRoom() {
     if (endCallBtn) endCallBtn.classList.remove("hidden");
     showRoomInfoModal();
     updateJoinCodeBadge();
+    setStatus("room created: " + roomId);
 
     // Update URL to include ?room=ID
-    if (window.history && window.history.replaceState) {
+    if (window.history && window.history.pushState) {
       const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-      window.history.replaceState(null, "", newUrl);
+      window.history.pushState({ roomId }, "", newUrl);
     }
 
-    setStatus("room created: " + roomId);
+    // Schedule idle cleanup for this room
+    scheduleRoomCleanup(roomId);
   } catch (err) {
     console.error("[Room] Error creating room:", err);
     setStatus("error creating room");
@@ -659,23 +633,22 @@ async function joinRoomById(id) {
     roomId = id;
     roomRef = database.ref(`rooms/${roomId}`);
 
-    // DO NOT auto-start media here -> join without permissions
-    // await startLocalMedia();
-
     initRoomInfra();
 
     // UI
     if (joinModal) joinModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.remove("hidden");
     updateJoinCodeBadge();
+    setStatus("joined room " + roomId);
 
-    // Update URL to match this room
-    if (window.history && window.history.replaceState) {
+    // Update URL to include ?room=ID
+    if (window.history && window.history.pushState) {
       const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-      window.history.replaceState(null, "", newUrl);
+      window.history.pushState({ roomId }, "", newUrl);
     }
 
-    setStatus("joined room " + roomId);
+    // Schedule idle cleanup for this room
+    scheduleRoomCleanup(roomId);
   } catch (err) {
     console.error("[Room] Error joining room:", err);
     setStatus("error joining room");
@@ -699,7 +672,7 @@ async function endCall() {
     }
     clearVideos();
 
-    // Remove our participant
+    // Remove our participant & listeners
     if (myParticipantRef) {
       try {
         await myParticipantRef.remove();
@@ -708,8 +681,13 @@ async function endCall() {
       }
       myParticipantRef = null;
     }
-
-    // We do NOT remove the entire room here; auto-delete watcher handles it
+    if (roomRef && roomId) {
+      try {
+        roomRef.off(); // detach all listeners for this client
+      } catch (err) {
+        console.warn("[Call] Error cleaning room listeners:", err);
+      }
+    }
     roomRef = null;
     roomId = null;
     clientId = null;
@@ -719,13 +697,6 @@ async function endCall() {
     if (roomInfoModal) roomInfoModal.style.display = "none";
     if (endCallBtn) endCallBtn.classList.add("hidden");
     if (roomIdInput) roomIdInput.value = "";
-
-    // Reset URL back to base (no ?room=)
-    if (window.history && window.history.replaceState) {
-      const baseUrl = `${window.location.origin}${window.location.pathname}`;
-      window.history.replaceState(null, "", baseUrl);
-    }
-
     setStatus("idle");
   } catch (err) {
     console.error("[Call] Error ending call:", err);
@@ -734,135 +705,132 @@ async function endCall() {
 }
 
 // -----------------------------
-//  DEVICE ENUMERATION + SELECT
+//  DEVICE ENUM / SELECT UI
+//  (Mic + Camera buttons next to controls)
 // -----------------------------
-async function listDevices() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    alert("Media devices API not supported in this browser.");
-    throw new Error("enumerateDevices not supported");
+function setupDeviceSelectorButtons() {
+  const controlsBlock = document.querySelector(".main__controls__block");
+  if (!controlsBlock) return;
+
+  // Create Mic button
+  const selectMicBtn = document.createElement("button");
+  selectMicBtn.id = "select-mic-btn";
+  selectMicBtn.className = "main__controls__button";
+  selectMicBtn.innerHTML = '<i class="fas fa-microphone"></i><span>Select Mic</span>';
+
+  // Create Camera button
+  const selectCamBtn = document.createElement("button");
+  selectCamBtn.id = "select-cam-btn";
+  selectCamBtn.className = "main__controls__button";
+  selectCamBtn.innerHTML = '<i class="fas fa-video"></i><span>Select Cam</span>';
+
+  controlsBlock.appendChild(selectMicBtn);
+  controlsBlock.appendChild(selectCamBtn);
+
+  // Device enumeration helper
+  async function listDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return {
+      mics: devices.filter(d => d.kind === "audioinput"),
+      cams: devices.filter(d => d.kind === "videoinput")
+    };
   }
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  return {
-    mics: devices.filter((d) => d.kind === "audioinput"),
-    cams: devices.filter((d) => d.kind === "videoinput")
-  };
-}
 
-// Replace audio or video tracks in localStream while keeping the other kind
-function replaceTracksInLocalStream(kind, newTracks) {
-  if (!localStream) {
-    localStream = new MediaStream();
-  }
-
-  // Remove existing tracks of this kind
-  const oldTracks =
-    kind === "audio"
-      ? localStream.getAudioTracks()
-      : localStream.getVideoTracks();
-
-  oldTracks.forEach((t) => {
-    t.stop();
-    localStream.removeTrack(t);
-  });
-
-  // Add new tracks
-  newTracks.forEach((t) => {
-    localStream.addTrack(t);
-  });
-
-  // Update local preview
-  addLocalVideo(localStream);
-
-  // Attach to peers and renegotiate
-  attachLocalTracksToAllPeers();
-}
-
-// Select Microphone
-if (selectMicBtn && navigator.mediaDevices) {
+  // Select microphone
   selectMicBtn.addEventListener("click", async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      alert("Device selection not supported in this browser.");
+      return;
+    }
+
+    const { mics } = await listDevices();
+    if (mics.length === 0) {
+      alert("No microphones detected.");
+      return;
+    }
+
+    const choice = prompt(
+      "Select a microphone by number:\n\n" +
+      mics.map((m, i) => `${i + 1}. ${m.label || "Mic " + (i + 1)}`).join("\n")
+    );
+    const index = parseInt(choice, 10) - 1;
+    if (isNaN(index) || index < 0 || index >= mics.length) return;
+
+    const deviceId = mics[index].deviceId;
+    selectedAudioDeviceId = deviceId;
+
     try {
-      setStatus("selecting microphone");
-      const { mics } = await listDevices();
-      if (mics.length === 0) {
-        alert("No microphones detected.");
-        return;
-      }
-
-      const choice = prompt(
-        "Select a microphone by number:\n\n" +
-          mics.map((m, i) => `${i + 1}. ${m.label || "Mic " + (i + 1)}`).join("\n")
-      );
-      if (!choice) return;
-
-      const index = parseInt(choice, 10) - 1;
-      if (Number.isNaN(index) || index < 0 || index >= mics.length) {
-        return;
-      }
-
-      const deviceId = mics[index].deviceId;
-
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const micStream = await startLocalMedia({
         audio: { deviceId: { exact: deviceId } },
         video: false
       });
 
-      const newAudioTracks = stream.getAudioTracks();
-      if (newAudioTracks.length === 0) {
-        alert("Selected microphone has no audio track.");
-        return;
+      const newAudioTrack = micStream.getAudioTracks()[0];
+      if (!newAudioTrack) return;
+
+      if (!localStream) {
+        localStream = new MediaStream();
       }
 
-      replaceTracksInLocalStream("audio", newAudioTracks);
-      setStatus("microphone selected");
-    } catch (err) {
-      console.error("[Devices] Error selecting microphone:", err);
-      alert("Could not access the selected microphone.");
-      setStatus("mic select error");
+      // Replace existing audio tracks in localStream
+      localStream.getAudioTracks().forEach(t => t.stop());
+      localStream.getAudioTracks().forEach(t => localStream.removeTrack(t));
+      localStream.addTrack(newAudioTrack);
+
+      addLocalVideo(localStream);
+      syncLocalTracksToPeers();
+      setStatus("mic selected");
+    } catch (e) {
+      console.warn("[Devices] Error selecting mic:", e);
     }
   });
-}
 
-// Select Camera
-if (selectCamBtn && navigator.mediaDevices) {
+  // Select camera
   selectCamBtn.addEventListener("click", async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      alert("Device selection not supported in this browser.");
+      return;
+    }
+
+    const { cams } = await listDevices();
+    if (cams.length === 0) {
+      alert("No cameras detected.");
+      return;
+    }
+
+    const choice = prompt(
+      "Select a camera by number:\n\n" +
+      cams.map((c, i) => `${i + 1}. ${c.label || "Camera " + (i + 1)}`).join("\n")
+    );
+    const index = parseInt(choice, 10) - 1;
+    if (isNaN(index) || index < 0 || index >= cams.length) return;
+
+    const deviceId = cams[index].deviceId;
+    selectedVideoDeviceId = deviceId;
+
     try {
-      setStatus("selecting camera");
-      const { cams } = await listDevices();
-      if (cams.length === 0) {
-        alert("No cameras detected.");
-        return;
-      }
-
-      const choice = prompt(
-        "Select a camera by number:\n\n" +
-          cams.map((c, i) => `${i + 1}. ${c.label || "Camera " + (i + 1)}`).join("\n")
-      );
-      if (!choice) return;
-
-      const index = parseInt(choice, 10) - 1;
-      if (Number.isNaN(index) || index < 0 || index >= cams.length) {
-        return;
-      }
-
-      const deviceId = cams[index].deviceId;
-
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const camStream = await startLocalMedia({
         video: { deviceId: { exact: deviceId } },
         audio: false
       });
 
-      const newVideoTracks = stream.getVideoTracks();
-      if (newVideoTracks.length === 0) {
-        alert("Selected camera has no video track.");
-        return;
+      const newVideoTrack = camStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      if (!localStream) {
+        localStream = new MediaStream();
       }
 
-      replaceTracksInLocalStream("video", newVideoTracks);
+      // Replace existing video tracks in localStream
+      localStream.getVideoTracks().forEach(t => t.stop());
+      localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+      localStream.addTrack(newVideoTrack);
+
+      addLocalVideo(localStream);
+      syncLocalTracksToPeers();
       setStatus("camera selected");
-    } catch (err) {
-      console.error("[Devices] Error selecting camera:", err);
-      alert("Could not access the selected camera.");
-      setStatus("camera select error");
+    } catch (e) {
+      console.warn("[Devices] Error selecting camera:", e);
     }
   });
 }
@@ -965,8 +933,10 @@ window.addEventListener("beforeunload", () => {
   }
 });
 
-// Auto-join if ?room=ID in URL
+// Auto-join if ?room=ID in URL + setup device buttons
 window.addEventListener("load", () => {
+  setupDeviceSelectorButtons();
+
   const urlParams = new URLSearchParams(window.location.search);
   const urlRoomId = urlParams.get("room");
   if (urlRoomId && roomIdInput) {
