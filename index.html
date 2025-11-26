@@ -9,73 +9,69 @@
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
-<body>
-    <!-- Top bar: title, language, theme -->
-    <div class="top-bar">
+<body class="theme-dark">
+    <!-- Top bar: language + theme -->
+    <header class="top-bar">
         <div class="top-bar-left">
-            <span class="app-title" data-i18n="app_title">Firebase Video Call</span>
+            <span class="app-title" data-i18n="appTitle">Firebase Video Call</span>
         </div>
         <div class="top-bar-right">
-            <select id="language-select">
+            <label class="top-bar-label" for="language-select" data-i18n="languageLabel">Language:</label>
+            <select id="language-select" class="top-bar-select">
                 <option value="en">English</option>
                 <option value="ru">Русский</option>
             </select>
-            <button id="theme-toggle-btn" class="icon-button" title="Toggle theme">
-                <i class="fas fa-moon"></i>
+            <button id="theme-toggle-btn" class="top-bar-button" title="Toggle theme">
+                <i class="fas fa-adjust"></i>
             </button>
         </div>
-    </div>
+    </header>
 
     <div class="container">
         <!-- Participants panel -->
-        <div id="participants-panel" class="participants-panel">
+        <aside class="participants-panel">
             <div class="participants-header">
-                <span data-i18n="participants_title">Participants</span>
+                <span data-i18n="participantsTitle">Participants</span>
             </div>
-            <ul id="participants-list"></ul>
-        </div>
+            <ul id="participants-list" class="participants-list">
+                <!-- Filled by JS -->
+            </ul>
+        </aside>
 
-        <!-- Main video + controls -->
         <div class="main">
             <div class="main__videos">
                 <div id="video-grid">
                     <!-- Local + remote videos get added here -->
                 </div>
             </div>
-
             <div class="main__controls">
                 <div class="main__controls__block">
                     <button id="mute-btn" class="main__controls__button main__mute_button">
                         <i class="fas fa-microphone"></i>
-                        <span data-i18n="btn_mute">Mute</span>
+                        <span data-i18n="mute">Mute</span>
                     </button>
                     <button id="video-btn" class="main__controls__button main__video_button">
                         <i class="fas fa-video"></i>
-                        <span data-i18n="btn_stop_video">Stop Video</span>
+                        <span data-i18n="stopVideo">Stop Video</span>
                     </button>
-                    <button id="selfview-mode-btn" class="main__controls__button">
+                    <button id="selfview-btn" class="main__controls__button">
                         <i class="fas fa-user-circle"></i>
-                        <span data-i18n="btn_selfview">Self View</span>
+                        <span data-i18n="selfView">Self View</span>
                     </button>
+                    <div class="main__controls__group">
+                        <label for="resolution-select" data-i18n="qualityLabel">Quality</label>
+                        <select id="resolution-select">
+                            <option value="auto" data-i18n="qualityAuto">Auto</option>
+                            <option value="480" data-i18n="quality480">480p</option>
+                            <option value="720" data-i18n="quality720">720p</option>
+                            <option value="1080" data-i18n="quality1080">1080p</option>
+                            <option value="2160" data-i18n="quality2160">4K</option>
+                        </select>
+                    </div>
                     <button id="end-call-btn" class="main__controls__button end-call-button hidden">
                         <i class="fas fa-phone-slash"></i>
-                        <span data-i18n="btn_end_call">End Call</span>
+                        <span data-i18n="endCall">End Call</span>
                     </button>
-                </div>
-
-                <div class="main__controls__block main__controls__block--devices">
-                    <select id="resolution-select" class="main__controls__select">
-                        <option value="default" data-i18n="resolution_auto">Auto</option>
-                        <option value="720p">720p</option>
-                        <option value="1080p">1080p</option>
-                        <option value="2160p">4K</option>
-                    </select>
-                    <select id="camera-select" class="main__controls__select">
-                        <option value="" data-i18n="camera_default">Default camera</option>
-                    </select>
-                    <select id="mic-select" class="main__controls__select">
-                        <option value="" data-i18n="mic_default">Default mic</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -84,18 +80,19 @@
     <!-- Slide-out Chat Toggle (hidden until in a call) -->
     <button id="chat-toggle-btn" class="chat-toggle-btn" style="display:none;">
         <i class="fas fa-comments"></i>
+        <span class="chat-unread-dot" id="chat-unread-dot"></span>
     </button>
 
     <!-- Slide-out Chat Panel (hidden until in a call) -->
     <div id="chat-panel" class="chat-panel chat-panel--hidden" style="display:none;">
         <div class="chat-panel__header">
-            <span data-i18n="chat_title">Chat</span>
+            <span data-i18n="chatTitle">Chat</span>
             <button id="chat-close-btn" class="chat-header-button">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="chat-panel__target">
-            <label for="chat-target-select" data-i18n="chat_to">To:</label>
+            <label for="chat-target-select" data-i18n="chatTo">To:</label>
             <select id="chat-target-select">
                 <!-- Populated by JS: Everyone + participants -->
             </select>
@@ -104,38 +101,36 @@
             <!-- Messages appended here -->
         </div>
         <div class="chat-panel__input">
-            <button id="emoji-picker-btn" class="emoji-btn" title="Emoji">
-                😊
+            <button id="emoji-btn" class="emoji-button" title="Emoji">
+                <i class="far fa-smile"></i>
             </button>
-            <input id="chat-input" type="text"
-                   placeholder="Type a message..."
-                   autocomplete="off"
-                   data-i18n-placeholder="chat_placeholder" />
+            <input id="chat-input" type="text" placeholder="Type a message..."
+                   autocomplete="off" data-i18n-placeholder="chatPlaceholder" />
             <button id="chat-send-btn">
                 <i class="fas fa-paper-plane"></i>
             </button>
         </div>
-        <div id="emoji-picker" class="emoji-picker hidden"></div>
+        <div id="emoji-picker" class="emoji-picker hidden">
+            <!-- filled by JS -->
+        </div>
     </div>
 
-    <!-- Chat toast notification -->
-    <div id="chat-toast" class="chat-toast hidden"></div>
+    <!-- Chat notification toast -->
+    <div id="chat-notification" class="chat-notification hidden"></div>
 
     <!-- Join / Start Call Modal -->
     <div id="join-modal" class="modal">
         <div class="modal-content">
-            <h2 data-i18n="join_title">Join or Start a Call</h2>
+            <h2 data-i18n="joinTitle">Join or Start a Call</h2>
             <!-- Name input (required) -->
             <input type="text" id="display-name-input"
-                   placeholder="Enter your name"
-                   data-i18n-placeholder="name_placeholder">
+                   placeholder="Enter your name" data-i18n-placeholder="namePlaceholder">
             <!-- Room ID input -->
             <input type="text" id="room-id-input"
-                   placeholder="Enter Room ID to join"
-                   data-i18n-placeholder="room_placeholder">
+                   placeholder="Enter Room ID to join" data-i18n-placeholder="roomPlaceholder">
             <div class="modal-buttons">
-                <button id="join-call-btn" data-i18n="btn_join_call">Join Call</button>
-                <button id="start-call-btn" data-i18n="btn_start_call">Start New Call</button>
+                <button id="join-call-btn" data-i18n="joinCall">Join Call</button>
+                <button id="start-call-btn" data-i18n="startCall">Start New Call</button>
             </div>
         </div>
     </div>
@@ -143,14 +138,14 @@
     <!-- Room Info Modal (shows after starting a call) -->
     <div id="room-info-modal" class="modal" style="display: none;">
         <div class="room-info-content">
-            <h2 data-i18n="room_ready_title">Your Call is Ready!</h2>
-            <p data-i18n="room_ready_text">Share this ID or link with others to join your call.</p>
+            <h2 data-i18n="roomReadyTitle">Your Call is Ready!</h2>
+            <p data-i18n="roomReadyText">Share this ID or link with others to join your call.</p>
             <div class="room-id-display" id="room-id-display"></div>
             <div class="copy-buttons">
-                <button id="copy-id-btn" data-i18n="btn_copy_id">Copy ID</button>
-                <button id="copy-link-btn" data-i18n="btn_copy_link">Copy Link</button>
+                <button id="copy-id-btn" data-i18n="copyId">Copy ID</button>
+                <button id="copy-link-btn" data-i18n="copyLink">Copy Link</button>
             </div>
-            <button id="close-room-info-btn" data-i18n="btn_close">Close</button>
+            <button id="close-room-info-btn" data-i18n="close">Close</button>
         </div>
     </div>
 
