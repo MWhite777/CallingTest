@@ -21,15 +21,15 @@
                 <div class="main__controls__block">
                     <button id="mute-btn" class="main__controls__button main__mute_button">
                         <i class="fas fa-microphone"></i>
-                        <span data-i18n="mute">Mute</span>
+                        <span>Mute</span>
                     </button>
                     <button id="video-btn" class="main__controls__button main__video_button">
                         <i class="fas fa-video"></i>
-                        <span data-i18n="stopVideo">Stop Video</span>
+                        <span>Stop Video</span>
                     </button>
                     <button id="end-call-btn" class="main__controls__button end-call-button hidden">
                         <i class="fas fa-phone-slash"></i>
-                        <span data-i18n="endCall">End Call</span>
+                        <span>End Call</span>
                     </button>
                 </div>
             </div>
@@ -44,13 +44,13 @@
     <!-- Slide-out Chat Panel (hidden until in a call) -->
     <div id="chat-panel" class="chat-panel chat-panel--hidden" style="display:none;">
         <div class="chat-panel__header">
-            <span data-i18n="chatTitle">Chat</span>
+            <span>Chat</span>
             <button id="chat-close-btn" class="chat-header-button">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="chat-panel__target">
-            <label for="chat-target-select" data-i18n="chatTo">To:</label>
+            <label for="chat-target-select">To:</label>
             <select id="chat-target-select">
                 <!-- Populated by JS: Everyone + participants -->
             </select>
@@ -59,11 +59,7 @@
             <!-- Messages appended here -->
         </div>
         <div class="chat-panel__input">
-            <input id="chat-input"
-                   type="text"
-                   placeholder="Type a message..."
-                   autocomplete="off"
-                   data-i18n-placeholder="chatPlaceholder" />
+            <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" />
             <button id="chat-send-btn">
                 <i class="fas fa-paper-plane"></i>
             </button>
@@ -73,11 +69,11 @@
     <!-- Join / Start Call Modal -->
     <div id="join-modal" class="modal">
         <div class="modal-content">
-            <h2 data-i18n="joinTitle">Join or Start a Call</h2>
+            <h2>Join or Start a Call</h2>
 
-            <!-- Language selector BEFORE joining -->
-            <div class="modal-language-row">
-                <label for="language-select" data-i18n="languageLabel">Language:</label>
+            <!-- Language selector (BEFORE joining) -->
+            <div class="language-row">
+                <label for="language-select">Language:</label>
                 <select id="language-select">
                     <option value="en">English</option>
                     <option value="ru">Русский</option>
@@ -85,18 +81,13 @@
             </div>
 
             <!-- Name input (required) -->
-            <input type="text"
-                   id="display-name-input"
-                   placeholder="Enter your name"
-                   data-i18n-placeholder="namePlaceholder">
+            <input type="text" id="display-name-input" placeholder="Enter your name">
             <!-- Room ID input -->
-            <input type="text"
-                   id="room-id-input"
-                   placeholder="Enter Room ID to join"
-                   data-i18n-placeholder="roomPlaceholder">
+            <input type="text" id="room-id-input" placeholder="Enter Room ID to join">
+
             <div class="modal-buttons">
-                <button id="join-call-btn" data-i18n="joinCall">Join Call</button>
-                <button id="start-call-btn" data-i18n="startCall">Start New Call</button>
+                <button id="join-call-btn">Join Call</button>
+                <button id="start-call-btn">Start New Call</button>
             </div>
         </div>
     </div>
@@ -104,14 +95,14 @@
     <!-- Room Info Modal (shows after starting a call) -->
     <div id="room-info-modal" class="modal" style="display: none;">
         <div class="room-info-content">
-            <h2 data-i18n="roomReadyTitle">Your Call is Ready!</h2>
-            <p data-i18n="roomReadyText">Share this ID or link with others to join your call.</p>
+            <h2>Your Call is Ready!</h2>
+            <p>Share this ID or link with others to join your call.</p>
             <div class="room-id-display" id="room-id-display"></div>
             <div class="copy-buttons">
-                <button id="copy-id-btn" data-i18n="copyId">Copy ID</button>
-                <button id="copy-link-btn" data-i18n="copyLink">Copy Link</button>
+                <button id="copy-id-btn">Copy ID</button>
+                <button id="copy-link-btn">Copy Link</button>
             </div>
-            <button id="close-room-info-btn" data-i18n="close">Close</button>
+            <button id="close-room-info-btn">Close</button>
         </div>
     </div>
 
