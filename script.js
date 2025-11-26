@@ -1,6 +1,7 @@
 // -----------------------------
 //  Firebase Initialization
 // -----------------------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDl1rBlKbZezkdPHQovpXR_QZ_1v2w-sQg",
   authDomain: "my-calling-test.firebaseapp.com",
@@ -24,6 +25,7 @@ const roomInfoModal = document.getElementById("room-info-modal");
 const roomIdDisplay = document.getElementById("room-id-display");
 const roomIdInput = document.getElementById("room-id-input");
 const displayNameInput = document.getElementById("display-name-input");
+
 const startCallBtn = document.getElementById("start-call-btn");
 const joinCallBtn = document.getElementById("join-call-btn");
 const copyIdBtn = document.getElementById("copy-id-btn");
@@ -33,19 +35,18 @@ const muteBtn = document.getElementById("mute-btn");
 const videoBtn = document.getElementById("video-btn");
 const endCallBtn = document.getElementById("end-call-btn");
 
-// Chat / participants UI
+// Chat panel elements
 const chatPanel = document.getElementById("chat-panel");
-const chatToggle = document.getElementById("chat-toggle");
-const chatModePublicBtn = document.getElementById("chat-mode-public");
-const chatModePrivateBtn = document.getElementById("chat-mode-private");
-const privateControls = document.getElementById("private-controls");
-const privateRecipientSelect = document.getElementById("private-recipient");
+const chatToggleBtn = document.getElementById("chat-toggle-btn");
+const chatCloseBtn = document.getElementById("chat-close-btn");
 const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
 const chatSendBtn = document.getElementById("chat-send-btn");
-const participantsList = document.getElementById("participants-list");
+const chatTargetSelect = document.getElementById("chat-target-select");
 
-// Simple subtitles container (optional, not in DOM but kept)
+// Optional future UI
+const participantsList = document.getElementById("participants-list");
+const languageSelect = document.getElementById("language-select");
 const subtitlesContainer = document.getElementById("subtitles-container");
 
 // Status label
@@ -82,12 +83,24 @@ let clientId = null;
 let participantsRef = null;
 let myParticipantRef = null;
 const peers = {};
-let userSelectedLanguage = "en"; // reserved if you later add language select
-let displayName = null;
+
+let userSelectedLanguage = "en";
+if (languageSelect) {
+  userSelectedLanguage = languageSelect.value || "en";
+  languageSelect.addEventListener("change", (e) => {
+    userSelectedLanguage = e.target.value || "en";
+  });
+}
+
+// display name for this client
+let displayName = "";
+
+// map clientId -> name for chat / UI
+const participantNames = {};
 
 // chat state
-let chatMode = "public"; // "public" or "private"
-const participantsMap = {}; // clientId -> { name }
+const CHAT_TARGET_PUBLIC = "__public__";
+let chatListenersStarted = false;
 
 // -----------------------------
 //  ICE SERVERS
@@ -157,6 +170,7 @@ function addRemoteVideo(peerId, stream) {
   updateVideoLayout();
 }
 function showRoomInfoModal() {
+  if (!roomIdDisplay || !roomInfoModal) return;
   roomIdDisplay.textContent = roomId;
   roomInfoModal.style.display = "flex";
 }
@@ -176,6 +190,7 @@ async function startLocalMedia() {
     setStatus("media ready");
     return localStream;
   } catch (err) {
+    console.error(err);
     alert("Could not access camera/microphone.");
     throw err;
   }
@@ -198,14 +213,11 @@ function createPeerConnectionForPeer(peerId) {
     event.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
     addRemoteVideo(peerId, remoteStream);
   };
-
   pc.onicecandidate = (event) => {
-    if (!event.candidate) return;
-    if (!roomRef || !clientId) return;
+    if (!event.candidate || !roomRef || !clientId) return;
     roomRef.child("signals").child(peerId).child(clientId)
       .child("ice").push(event.candidate.toJSON());
   };
-
   return pc;
 }
 
@@ -230,7 +242,6 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
         .child("answer").set({ type: answer.type, sdp: answer.sdp });
     }
   });
-
   fromRef.child("answer").on("value", async snap => {
     const ans = snap.val();
     if (!ans) return;
@@ -239,53 +250,59 @@ function setupSignalHandlersForPeer(fromId, fromRef) {
       await pc.setRemoteDescription(new RTCSessionDescription(ans));
     }
   });
-
   fromRef.child("ice").on("child_added", snap => {
     const cand = snap.val();
+    if (!cand) return;
     const pc = createPeerConnectionForPeer(fromId);
     pc.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
   });
 }
 
 // -----------------------------
-//  PARTICIPANTS
+//  PARTICIPANTS + PRIVATE CHAT TARGETS
 // -----------------------------
-function addParticipantToUI(id, data) {
-  if (!participantsList) return;
-  const name = (data && data.name) || id;
-  participantsMap[id] = { name };
+function rebuildChatTargetSelect() {
+  if (!chatTargetSelect) return;
+  chatTargetSelect.innerHTML = "";
 
-  let li = document.getElementById("user-" + id);
-  if (!li) {
-    li = document.createElement("li");
-    li.id = "user-" + id;
-    participantsList.appendChild(li);
-  }
-  li.textContent = id === clientId ? `${name} (You)` : name;
+  // Everyone (public)
+  const optAll = document.createElement("option");
+  optAll.value = CHAT_TARGET_PUBLIC;
+  optAll.textContent = "Everyone";
+  chatTargetSelect.appendChild(optAll);
 
-  // update private recipient select
-  if (privateRecipientSelect && id !== clientId) {
-    let opt = privateRecipientSelect.querySelector(`option[value="${id}"]`);
-    if (!opt) {
-      opt = document.createElement("option");
-      opt.value = id;
-      opt.textContent = name;
-      privateRecipientSelect.appendChild(opt);
-    } else {
-      opt.textContent = name;
-    }
-  }
+  Object.keys(participantNames).forEach(id => {
+    const name = participantNames[id] || id;
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = id === clientId ? `${name} (You)` : name;
+    chatTargetSelect.appendChild(opt);
+  });
 }
 
-function removeParticipantFromUI(id) {
-  const li = document.getElementById("user-" + id);
-  if (li) li.remove();
-  delete participantsMap[id];
+function addParticipantToUI(id, data) {
+  const name = (data && data.name) || id;
+  participantNames[id] = name;
 
-  if (privateRecipientSelect) {
-    const opt = privateRecipientSelect.querySelector(`option[value="${id}"]`);
-    if (opt) opt.remove();
+  if (participantsList) {
+    let li = document.getElementById("user-" + id);
+    if (!li) {
+      li = document.createElement("li");
+      li.id = "user-" + id;
+      li.textContent = id === clientId ? `${name} (You)` : name;
+      participantsList.appendChild(li);
+    } else {
+      li.textContent = id === clientId ? `${name} (You)` : name;
+    }
   }
+
+  rebuildChatTargetSelect();
+}
+function removeParticipantFromUI(id) {
+  delete participantNames[id];
+  const li = document.getElementById("user-" + id);
+  if (li && participantsList) li.remove();
+  rebuildChatTargetSelect();
 }
 
 function cleanupPeer(peerId) {
@@ -301,18 +318,19 @@ function cleanupPeer(peerId) {
 //  ROOM AUTO‑DELETE AFTER EMPTY FOR 10 MIN
 // -----------------------------
 function startRoomEmptyWatcher() {
-  if (!roomRef) return;
+  if (!roomRef || !participantsRef) return;
   const EMPTY_TIMEOUT = 10 * 60 * 1000; // 10 min
   let emptySince = null;
 
   participantsRef.on("value", (snap) => {
     const participants = snap.val();
     const count = participants ? Object.keys(participants).length : 0;
+
     if (count === 0) {
       if (!emptySince) emptySince = Date.now();
       const elapsed = Date.now() - emptySince;
       if (elapsed > EMPTY_TIMEOUT) {
-        console.log("[Cleanup] Room empty for 10 minutes. Removing...");
+        console.log("[Cleanup] Room empty for 10 minutes. Removing room (and chats)...");
         roomRef.remove();
       }
     } else {
@@ -322,89 +340,121 @@ function startRoomEmptyWatcher() {
 }
 
 // -----------------------------
-//  CHAT
+//  CHAT: PUBLIC + PRIVATE (Option B)
+// rooms/{roomId}/chat/public/{msgId}
+// rooms/{roomId}/chat/private/{msgId} => { fromId, toId, text, ts }
 // -----------------------------
-function addChatMessageToUI(message, isPrivate, isOwn) {
+function addChatMessageToUI(msg, scope) {
   if (!chatMessages) return;
-  const div = document.createElement("div");
-  div.classList.add("chat-message");
-  if (isPrivate) div.classList.add("private");
-  if (isOwn) div.classList.add("own");
+  const fromId = msg.fromId || "unknown";
+  const fromName = msg.fromName || participantNames[fromId] || fromId;
+  const toId = msg.toId || null;
 
-  const fromName = message.fromName || message.sender || "Unknown";
+  let meta = "";
+  if (scope === "public") {
+    meta = `${fromName} → Everyone`;
+  } else {
+    // private
+    if (fromId === clientId && toId) {
+      const toName = participantNames[toId] || toId;
+      meta = `You → ${toName} (private)`;
+    } else if (toId === clientId) {
+      meta = `${fromName} → You (private)`;
+    } else {
+      meta = `${fromName} (private)`;
+    }
+  }
 
-  const meta = document.createElement("div");
-  meta.classList.add("meta");
-  meta.textContent = isPrivate
-    ? `${fromName} (private)`
-    : fromName;
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-message";
 
-  const body = document.createElement("div");
-  body.classList.add("body");
-  body.textContent = message.text;
+  const metaEl = document.createElement("div");
+  metaEl.className = "chat-message-meta";
+  metaEl.textContent = meta;
 
-  div.appendChild(meta);
-  div.appendChild(body);
+  const textEl = document.createElement("div");
+  textEl.className = "chat-message-text";
+  textEl.textContent = msg.text || "";
 
-  chatMessages.appendChild(div);
+  wrapper.appendChild(metaEl);
+  wrapper.appendChild(textEl);
+  chatMessages.appendChild(wrapper);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function startChatListeners() {
-  if (!roomRef) return;
+function clearChatUI() {
+  if (chatMessages) chatMessages.innerHTML = "";
+  if (chatTargetSelect) {
+    chatTargetSelect.innerHTML = "";
+  }
+}
 
-  const publicRef = roomRef.child("chat").child("public");
+// start listeners for current room
+function startChatListeners() {
+  if (chatListenersStarted || !roomRef || !clientId) return;
+  chatListenersStarted = true;
+
+  const chatRoot = roomRef.child("chat");
+
+  // PUBLIC
+  const publicRef = chatRoot.child("public");
   publicRef.on("child_added", (snap) => {
     const msg = snap.val();
     if (!msg) return;
-    const isOwn = msg.fromId === clientId;
-    addChatMessageToUI(msg, false, isOwn);
+    addChatMessageToUI(msg, "public");
   });
 
-  const privateRef = roomRef.child("chat").child("private");
+  // PRIVATE (single feed, filter for this client)
+  const privateRef = chatRoot.child("private");
   privateRef.on("child_added", (snap) => {
     const msg = snap.val();
     if (!msg) return;
-    // only show if we are sender or receiver
-    if (msg.fromId === clientId || msg.toId === clientId) {
-      const isOwn = msg.fromId === clientId;
-      addChatMessageToUI(msg, true, isOwn);
+    const { fromId, toId } = msg;
+    if (!fromId || !toId) return;
+    if (fromId === clientId || toId === clientId) {
+      addChatMessageToUI(msg, "private");
     }
   });
+
+  console.log("[Chat] listeners attached for room", roomId);
 }
 
-function sendChat() {
-  if (!roomRef || !chatInput) return;
-  const text = chatInput.value.trim();
-  if (!text) return;
-  if (!clientId || !displayName) {
-    alert("You need a name to chat.");
+function stopChatListeners() {
+  if (!roomRef) return;
+  roomRef.child("chat").off();
+  chatListenersStarted = false;
+}
+
+function sendChatMessage() {
+  if (!roomRef || !clientId || !displayName) {
+    alert("You must be in a room to chat.");
     return;
   }
+  const text = chatInput.value.trim();
+  if (!text) return;
 
-  if (chatMode === "public") {
-    roomRef.child("chat").child("public").push({
+  const target = chatTargetSelect ? chatTargetSelect.value : CHAT_TARGET_PUBLIC;
+  const chatRoot = roomRef.child("chat");
+  const ts = Date.now();
+
+  if (target === CHAT_TARGET_PUBLIC) {
+    const msg = {
       fromId: clientId,
       fromName: displayName,
       text,
-      ts: Date.now()
-    });
+      ts
+    };
+    chatRoot.child("public").push(msg);
   } else {
-    if (!privateRecipientSelect) return;
-    const toId = privateRecipientSelect.value;
-    if (!toId) {
-      alert("Select who to send to.");
-      return;
-    }
-    const toName = (participantsMap[toId] && participantsMap[toId].name) || toId;
-    roomRef.child("chat").child("private").push({
+    const toId = target;
+    const msg = {
       fromId: clientId,
       fromName: displayName,
       toId,
-      toName,
       text,
-      ts: Date.now()
-    });
+      ts
+    };
+    chatRoot.child("private").push(msg);
   }
 
   chatInput.value = "";
@@ -414,11 +464,14 @@ function sendChat() {
 //  INIT ROOM
 // -----------------------------
 function initRoomInfra() {
+  if (!roomRef) return;
+
   participantsRef = roomRef.child("participants");
   myParticipantRef = participantsRef.push();
   clientId = myParticipantRef.key;
+
   myParticipantRef.set({
-    name: displayName || "Guest",
+    name: displayName || clientId,
     lang: userSelectedLanguage,
     joinedAt: Date.now()
   });
@@ -426,11 +479,10 @@ function initRoomInfra() {
 
   participantsRef.on("child_added", snap => {
     const pid = snap.key;
-    const data = snap.val();
-    addParticipantToUI(pid, data);
+    const pdata = snap.val() || {};
+    addParticipantToUI(pid, pdata);
     if (pid !== clientId && clientId > pid) connectToPeer(pid);
   });
-
   participantsRef.on("child_removed", snap => {
     const pid = snap.key;
     removeParticipantFromUI(pid);
@@ -446,12 +498,38 @@ function initRoomInfra() {
 }
 
 // -----------------------------
+//  SHOW/HIDE CHAT UI BY CALL STATE
+// -----------------------------
+function showChatUI() {
+  if (chatPanel) {
+    chatPanel.style.display = "flex";
+    chatPanel.classList.add("chat-panel--hidden");
+    chatPanel.classList.remove("chat-panel--open");
+  }
+  if (chatToggleBtn) {
+    chatToggleBtn.style.display = "flex";
+  }
+}
+
+function hideChatUI() {
+  if (chatPanel) {
+    chatPanel.style.display = "none";
+    chatPanel.classList.add("chat-panel--hidden");
+    chatPanel.classList.remove("chat-panel--open");
+  }
+  if (chatToggleBtn) {
+    chatToggleBtn.style.display = "none";
+  }
+  clearChatUI();
+}
+
+// -----------------------------
 //  CREATE ROOM
 // -----------------------------
 async function createRoom() {
   const name = displayNameInput ? displayNameInput.value.trim() : "";
   if (!name) {
-    alert("Please enter your name before starting a call.");
+    alert("Please enter your name first.");
     return;
   }
   displayName = name;
@@ -463,14 +541,14 @@ async function createRoom() {
   await startLocalMedia();
   initRoomInfra();
 
-  joinModal.style.display = "none";
-  endCallBtn.classList.remove("hidden");
+  if (joinModal) joinModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.remove("hidden");
   updateJoinCodeBadge();
   showRoomInfoModal();
 
-  // Update URL WITHOUT reload
   history.replaceState(null, "", `?room=${roomId}`);
   setStatus("room created");
+  showChatUI();
 }
 
 // -----------------------------
@@ -479,7 +557,7 @@ async function createRoom() {
 async function joinRoomById(id) {
   const name = displayNameInput ? displayNameInput.value.trim() : "";
   if (!name) {
-    alert("Please enter your name before joining a call.");
+    alert("Please enter your name first.");
     return;
   }
   displayName = name;
@@ -495,37 +573,59 @@ async function joinRoomById(id) {
   await startLocalMedia();
   initRoomInfra();
 
-  joinModal.style.display = "none";
-  endCallBtn.classList.remove("hidden");
+  if (joinModal) joinModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.remove("hidden");
   updateJoinCodeBadge();
 
-  // Update URL to the joined room
   history.replaceState(null, "", `?room=${roomId}`);
   setStatus("joined room");
+  showChatUI();
 }
 
 // -----------------------------
 //  END CALL
 // -----------------------------
 async function endCall() {
+  console.log("[Call] Ending call");
+
   Object.keys(peers).forEach(pid => cleanupPeer(pid));
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
     localStream = null;
   }
   clearVideos();
-  if (myParticipantRef) await myParticipantRef.remove();
-  if (roomRef) roomRef.off();
+
+  if (myParticipantRef) {
+    try {
+      await myParticipantRef.remove();
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  stopChatListeners();
+  hideChatUI();
+
+  if (roomRef) {
+    roomRef.off();
+  }
+
+  // reset participantNames
+  Object.keys(participantNames).forEach(k => delete participantNames[k]);
+
   roomRef = null;
   roomId = null;
   clientId = null;
+  participantsRef = null;
+  myParticipantRef = null;
   updateJoinCodeBadge();
-  joinModal.style.display = "flex";
-  roomInfoModal.style.display = "none";
-  endCallBtn.classList.add("hidden");
 
-  // Reset URL back to base
-  history.replaceState(null, "", "/CallingTest");
+  if (joinModal) joinModal.style.display = "flex";
+  if (roomInfoModal) roomInfoModal.style.display = "none";
+  if (endCallBtn) endCallBtn.classList.add("hidden");
+
+  // Reset URL back to base path (no room)
+  history.replaceState(null, "", window.location.pathname);
   setStatus("idle");
 }
 
@@ -537,24 +637,25 @@ if (startCallBtn) {
 }
 if (joinCallBtn) {
   joinCallBtn.onclick = () => {
-    const inputId = roomIdInput ? roomIdInput.value.trim() : "";
-    if (!inputId) {
-      alert("Enter a room ID to join.");
+    const id = roomIdInput ? roomIdInput.value.trim() : "";
+    if (!id) {
+      alert("Enter a Room ID.");
       return;
     }
-    joinRoomById(inputId);
+    joinRoomById(id);
   };
 }
 if (endCallBtn) {
   endCallBtn.onclick = endCall;
 }
+
 if (copyIdBtn) {
   copyIdBtn.onclick = () => {
     if (!roomId) return;
     navigator.clipboard.writeText(roomId);
-    const original = copyIdBtn.textContent;
+    const old = copyIdBtn.textContent;
     copyIdBtn.textContent = "Copied!";
-    setTimeout(() => (copyIdBtn.textContent = original), 2000);
+    setTimeout(() => (copyIdBtn.textContent = old), 2000);
   };
 }
 if (copyLinkBtn) {
@@ -562,13 +663,15 @@ if (copyLinkBtn) {
     if (!roomId) return;
     const url = `${location.origin}${location.pathname}?room=${roomId}`;
     navigator.clipboard.writeText(url);
-    const original = copyLinkBtn.textContent;
+    const old = copyLinkBtn.textContent;
     copyLinkBtn.textContent = "Link Copied!";
-    setTimeout(() => (copyLinkBtn.textContent = original), 2000);
+    setTimeout(() => (copyLinkBtn.textContent = old), 2000);
   };
 }
 if (closeRoomInfoBtn) {
-  closeRoomInfoBtn.onclick = () => (roomInfoModal.style.display = "none");
+  closeRoomInfoBtn.onclick = () => {
+    if (roomInfoModal) roomInfoModal.style.display = "none";
+  };
 }
 
 // Mute
@@ -596,55 +699,45 @@ if (videoBtn) {
   };
 }
 
-// Chat panel toggle
-if (chatToggle && chatPanel) {
-  chatToggle.addEventListener("click", () => {
-    const isOpen = chatPanel.classList.toggle("open");
-    chatPanel.classList.toggle("collapsed", !isOpen);
-    const icon = chatToggle.querySelector("i");
-    if (icon) {
-      icon.className = isOpen ? "fas fa-chevron-right" : "fas fa-chevron-left";
+// Chat UI events
+if (chatToggleBtn && chatPanel) {
+  chatToggleBtn.addEventListener("click", () => {
+    const open = chatPanel.classList.contains("chat-panel--open");
+    if (open) {
+      chatPanel.classList.remove("chat-panel--open");
+      chatPanel.classList.add("chat-panel--hidden");
+    } else {
+      chatPanel.classList.remove("chat-panel--hidden");
+      chatPanel.classList.add("chat-panel--open");
     }
   });
 }
-
-// Chat mode buttons
-if (chatModePublicBtn && chatModePrivateBtn) {
-  chatModePublicBtn.addEventListener("click", () => {
-    chatMode = "public";
-    chatModePublicBtn.classList.add("active");
-    chatModePrivateBtn.classList.remove("active");
-    if (privateControls) privateControls.classList.add("hidden");
-  });
-  chatModePrivateBtn.addEventListener("click", () => {
-    chatMode = "private";
-    chatModePrivateBtn.classList.add("active");
-    chatModePublicBtn.classList.remove("active");
-    if (privateControls) privateControls.classList.remove("hidden");
+if (chatCloseBtn && chatPanel) {
+  chatCloseBtn.addEventListener("click", () => {
+    chatPanel.classList.remove("chat-panel--open");
+    chatPanel.classList.add("chat-panel--hidden");
   });
 }
-
-// Chat send handlers
 if (chatSendBtn && chatInput) {
-  chatSendBtn.addEventListener("click", sendChat);
+  chatSendBtn.addEventListener("click", sendChatMessage);
   chatInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      sendChat();
+      sendChatMessage();
     }
   });
 }
 
 // -----------------------------
-//  AUTO-JOIN FROM URL (no auto connect)
+//  AUTO-JOIN PRE-FILL FROM URL
 // -----------------------------
 window.addEventListener("load", () => {
   const params = new URLSearchParams(window.location.search);
   const urlRoom = params.get("room");
   if (urlRoom && roomIdInput) {
     roomIdInput.value = urlRoom;
-    // Do NOT auto-join: user must enter name and click join
   }
+  // joinModal stays open: user must still enter name + click
 });
 
 // Cleanup on tab close
