@@ -5,34 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Firebase Video Call</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome for icons -->
+
+    <!-- Font Awesome -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
+
     <div class="container">
         <div class="main">
+
             <div class="main__videos">
-                <div id="video-grid">
-                    <!-- Local + remote videos get added here -->
-                </div>
+                <div id="video-grid"></div>
             </div>
+
             <div class="main__controls">
                 <div class="main__controls__block">
+
+                    <!-- Mute -->
                     <button id="mute-btn" class="main__controls__button main__mute_button">
                         <i class="fas fa-microphone"></i>
                         <span>Mute</span>
                     </button>
+
+                    <!-- Stop Video -->
                     <button id="video-btn" class="main__controls__button main__video_button">
                         <i class="fas fa-video"></i>
                         <span>Stop Video</span>
                     </button>
+
+                    <!-- Mic Selector -->
+                    <button id="mic-select-btn" class="main__controls__button">
+                        <i class="fas fa-microphone-alt"></i>
+                        <span>Mic</span>
+                    </button>
+
+                    <!-- Camera Selector -->
+                    <button id="cam-select-btn" class="main__controls__button">
+                        <i class="fas fa-camera"></i>
+                        <span>Camera</span>
+                    </button>
+
+                    <!-- End Call -->
                     <button id="end-call-btn" class="main__controls__button end-call-button hidden">
                         <i class="fas fa-phone-slash"></i>
                         <span>End Call</span>
                     </button>
+
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -48,7 +70,7 @@
         </div>
     </div>
 
-    <!-- Room Info Modal (shows after starting a call) -->
+    <!-- Room Info Modal -->
     <div id="room-info-modal" class="modal" style="display: none;">
         <div class="room-info-content">
             <h2>Your Call is Ready!</h2>
@@ -62,11 +84,12 @@
         </div>
     </div>
 
-    <!-- Firebase SDK (compat version, works with firebase.initializeApp) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 
-    <!-- Your app logic -->
+    <!-- Your script -->
     <script src="script.js"></script>
+
 </body>
 </html>
